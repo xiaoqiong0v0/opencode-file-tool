@@ -12,20 +12,6 @@ const CACHE_DIR = join(CONFIG_DIR, ".opencode/plugins-cache")
 
 const log = createLogger("file-tool")
 
-// 自动生成 command 定义
-const CMD_DIR = join(CONFIG_DIR, ".config/opencode/command")
-const CMD_CONTENT = `---
-description: 切换视觉分析模型
----
-直接调用 file_tool 工具，不要委托给其他 agent。
-没有参数默认传递：\`list-provider\`，列出可选择模型提供者。
-使用 \`set-provider <模型名>\` 切换模型。
-使用 \`list-cache\` 查看缓存文件列表。
-`
-if (!existsSync(CMD_DIR)) mkdirSync(CMD_DIR, { recursive: true })
-const cmdFile = join(CMD_DIR, "file-tool.md")
-if (!existsSync(cmdFile)) writeFileSync(cmdFile, CMD_CONTENT, "utf-8")
-
 // 自动生成默认配置
 const FILE_TOOL_CFG_SAMPLE = `{
   // 视觉分析模型（provider/modelId），file_tool set-provider 切换
@@ -44,11 +30,30 @@ if (!existsSync(CONFIG_PATH)) {
 }
 
 // 懒加载视觉模型配置，启动时不抛错
-
-// 懒加载视觉模型配置，启动时不抛错
 let _visionCfg = null
 
 const LANG = (() => { try { return readJsonc(CONFIG_PATH).lang || "zh" } catch { return "zh" } })()
+
+// 自动生成 command 定义（依赖 LANG）
+const CMD_DIR = join(CONFIG_DIR, ".config/opencode/command")
+const CMD_CONTENT = LANG === "en" ? `---
+description: Switch vision analysis model
+---
+Call file_tool directly, don't delegate to other agents.
+Default: \`list-provider\` to list available model providers.
+Use \`set-provider <model>\` to switch models.
+Use \`list-cache\` to view cached files.
+` : `---
+description: 切换视觉分析模型
+---
+直接调用 file_tool 工具，不要委托给其他 agent。
+没有参数默认传递：\`list-provider\`，列出可选择模型提供者。
+使用 \`set-provider <模型名>\` 切换模型。
+使用 \`list-cache\` 查看缓存文件列表。
+`
+if (!existsSync(CMD_DIR)) mkdirSync(CMD_DIR, { recursive: true })
+const cmdFile = join(CMD_DIR, "file-tool.md")
+if (!existsSync(cmdFile)) writeFileSync(cmdFile, CMD_CONTENT, "utf-8")
 
 const TX = {
   file_not_found:           { zh: "文件不存在: {path}", en: "File not found: {path}" },
