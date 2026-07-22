@@ -9,15 +9,12 @@ const CONFIG_DIR = process.env.HOME || process.env.USERPROFILE
 const CONFIG_PATH = join(CONFIG_DIR, ".config/opencode/file-tool.jsonc")
 const OPENCODE_CONFIG = join(CONFIG_DIR, ".config/opencode/opencode.json")
 const CACHE_DIR = join(CONFIG_DIR, ".opencode/plugins-cache")
+const CMD_DIR = join(CONFIG_DIR, ".config/opencode/command")
 
 const log = createLogger("file-tool")
 
-// 启动时加载配置缓存
-let _pluginCfg = {}
-try { if (existsSync(CONFIG_PATH)) _pluginCfg = readJsonc(CONFIG_PATH) } catch {}
-const MAX_CACHE_MSGS = (_pluginCfg.maxCacheMessages > 0) ? _pluginCfg.maxCacheMessages : 3
-
-// 自动生成默认配置
+// === 全局配置 ===
+let _cfg = null
 const FILE_TOOL_CFG_SAMPLE = `{
   // 视觉分析模型（provider/modelId），file_tool set-provider 切换
   "model": "",
@@ -30,17 +27,6 @@ const FILE_TOOL_CFG_SAMPLE = `{
   "lang": "en"
 }
 `
-if (!existsSync(CONFIG_PATH)) {
-  try { writeFileSync(CONFIG_PATH, FILE_TOOL_CFG_SAMPLE, "utf-8") } catch {}
-}
-
-// 懒加载视觉模型配置，启动时不抛错
-let _visionCfg = null
-
-const LANG = (() => { try { return readJsonc(CONFIG_PATH).lang || "en" } catch { return "en" } })()
-
-// 自动生成 command 定义（依赖 LANG）
-const CMD_DIR = join(CONFIG_DIR, ".config/opencode/command")
 const CMD_ZH = `---
 description: 切换视觉分析模型
 ---
@@ -57,19 +43,37 @@ Default: \`list-provider\` to list available model providers.
 Use \`set-provider <model>\` to switch models.
 Use \`list-cache\` to view cached files.
 `
-const CMD_CONTENT = LANG === "en" ? CMD_EN : CMD_ZH
-if (!existsSync(CMD_DIR)) mkdirSync(CMD_DIR, { recursive: true })
-const cmdFile = join(CMD_DIR, "file-tool.md")
-if (!existsSync(cmdFile)) {
-  writeFileSync(cmdFile, CMD_CONTENT, "utf-8")
-} else {
-  const existing = readFileSync(cmdFile, "utf-8")
-  if (existing === CMD_ZH || existing === CMD_EN) {
-    // 未被手动修改过，语言变更时自动替换
-    if (existing !== CMD_CONTENT) writeFileSync(cmdFile, CMD_CONTENT, "utf-8")
+
+let MAX_CACHE_MSGS = 3
+let LANG = "en"
+
+function loadCfg() {
+  if (!existsSync(CONFIG_PATH)) {
+    try { writeFileSync(CONFIG_PATH, FILE_TOOL_CFG_SAMPLE, "utf-8") } catch {}
   }
-  // 已被手动修改过，不做任何处理
+  const raw = existsSync(CONFIG_PATH) ? readJsonc(CONFIG_PATH) : {}
+  _cfg = resolveConfig(raw)
+  MAX_CACHE_MSGS = (raw.maxCacheMessages > 0) ? raw.maxCacheMessages : 3
+  LANG = raw.lang || "en"
+  // 自动生成 command 定义
+  const cmdLang = raw.lang || "en"
+  const content = cmdLang === "en" ? CMD_EN : CMD_ZH
+  if (!existsSync(CMD_DIR)) mkdirSync(CMD_DIR, { recursive: true })
+  const cmdFile = join(CMD_DIR, "file-tool.md")
+  if (!existsSync(cmdFile)) {
+    writeFileSync(cmdFile, content, "utf-8")
+  } else {
+    const existing = readFileSync(cmdFile, "utf-8")
+    if (existing === CMD_ZH || existing === CMD_EN) {
+      if (existing !== content) writeFileSync(cmdFile, content, "utf-8")
+    }
+  }
+  return _cfg
 }
+
+function reloadCfg() { loadCfg() }
+
+loadCfg()
 
 const TX = {
   file_not_found:           { zh: "文件不存在: {path}", en: "File not found: {path}" },
@@ -116,16 +120,11 @@ const DESC = {
   analyze_args_prompt: { zh: "分析提示", en: "prompt" },
 }
 
-function getVisionConfig() {
-  if (_visionCfg) return _visionCfg
-  const cfg = existsSync(CONFIG_PATH) ? readJsonc(CONFIG_PATH) : {}
-  _visionCfg = resolveConfig(cfg)
-  return _visionCfg
-}
-
-function reloadVisionConfig() {
-  const cfg = existsSync(CONFIG_PATH) ? readJsonc(CONFIG_PATH) : {}
-  _visionCfg = resolveConfig(cfg)
+function getCfg() {
+  if (_cfg) return _cfg
+  const raw = existsSync(CONFIG_PATH) ? readJsonc(CONFIG_PATH) : {}
+  _cfg = resolveConfig(raw)
+  return _cfg
 }
 
 function resolveConfig(fileConfig) {
@@ -154,12 +153,12 @@ function readJsonc(path) {
 }
 
 async function callVisionApi(imageUrl, prompt) {
-  const vc = getVisionConfig()
-  const resp = await fetch(`${vc.baseURL}/chat/completions`, {
+  const cfg = getCfg()
+  const resp = await fetch(`${cfg.baseURL}/chat/completions`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${vc.apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ model: vc.modelId, messages: [{ role: "user", content: [{ type: "text", text: prompt || "请详细描述这张图片的内容，返回格式: [文件名] 描述" }, { type: "image_url", image_url: { url: imageUrl } }] }], max_tokens: vc.maxTokens }),
-    signal: AbortSignal.timeout(vc.timeout),
+    headers: { Authorization: `Bearer ${cfg.apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ model: cfg.modelId, messages: [{ role: "user", content: [{ type: "text", text: prompt || "请详细描述这张图片的内容，返回格式: [文件名] 描述" }, { type: "image_url", image_url: { url: imageUrl } }] }], max_tokens: cfg.maxTokens }),
+    signal: AbortSignal.timeout(cfg.timeout),
   })
   if (!resp.ok) throw new Error(`API ${resp.status}: ${(await resp.text().catch(() => "unknown")).slice(0, 200)}`)
   const data = await resp.json()
@@ -368,7 +367,7 @@ export const FileTool = async () => {
             const cfg = existsSync(CONFIG_PATH) ? readJsonc(CONFIG_PATH) : {}
             cfg.model = model; delete cfg.apiKey; delete cfg.apiBaseUrl
             writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2))
-            reloadVisionConfig()
+            reloadCfg()
             return T("model_switched", { model })
           }
           if (cmd === "list-cache" || cmd.startsWith("list-cache ")) {

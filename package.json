@@ -1,5 +1,8 @@
 {
   "name": "opencode-file-tool",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "dependencies": {
+    "@xiaoqiong0v0/opencode-plugin-logger": "^1.0.0"
+  }
 }
