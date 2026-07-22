@@ -1,6 +1,6 @@
 {
   "name": "@xiaoqiong0v0/opencode-file-tool",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
   "description": "File cache & image analysis plugin for OpenCode. Auto-caches pasted images, analyzes via multimodal model.",
   "files": ["file-tool.js", "README.md"],
@@ -13,8 +13,5 @@
   "bugs": {
     "url": "https://github.com/xiaoqiong0v0/opencode-file-tool/issues"
   },
-  "license": "MIT",
-  "dependencies": {
-    "@xiaoqiong0v0/opencode-plugin-logger": "^1.0.0"
-  }
+  "license": "MIT"
 }
