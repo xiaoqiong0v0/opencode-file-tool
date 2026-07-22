@@ -12,6 +12,25 @@ const CACHE_DIR = join(CONFIG_DIR, ".opencode/plugins-cache")
 
 const log = createLogger("file-tool")
 
+// 自动生成默认配置（必须在 LANG 之前，否则首次读取不到）
+const FILE_TOOL_CFG_SAMPLE = `{
+  // 视觉分析模型（provider/modelId），file_tool set-provider 切换
+  "model": "",
+  "maxTokens": 4096,
+  "timeout": 60000,
+  "maxFileSizeMB": 20,
+  // 缓存消息数量上限，超过则删除最早的
+  "maxCacheMessages": 3,
+  // 工具提示语言：zh=中文, en=English
+  "lang": "zh"
+}
+`
+if (!existsSync(CONFIG_PATH)) {
+  try { writeFileSync(CONFIG_PATH, FILE_TOOL_CFG_SAMPLE, "utf-8") } catch {}
+}
+
+// 懒加载视觉模型配置，启动时不抛错
+
 // 懒加载视觉模型配置，启动时不抛错
 let _visionCfg = null
 
