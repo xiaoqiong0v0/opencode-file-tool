@@ -12,7 +12,21 @@ const CACHE_DIR = join(CONFIG_DIR, ".opencode/plugins-cache")
 
 const log = createLogger("file-tool")
 
-// 自动生成默认配置（必须在 LANG 之前，否则首次读取不到）
+// 自动生成 command 定义
+const CMD_DIR = join(CONFIG_DIR, ".config/opencode/command")
+const CMD_CONTENT = `---
+description: 切换视觉分析模型
+---
+直接调用 file_tool 工具，不要委托给其他 agent。
+没有参数默认传递：\`list-provider\`，列出可选择模型提供者。
+使用 \`set-provider <模型名>\` 切换模型。
+使用 \`list-cache\` 查看缓存文件列表。
+`
+if (!existsSync(CMD_DIR)) mkdirSync(CMD_DIR, { recursive: true })
+const cmdFile = join(CMD_DIR, "file-tool.md")
+if (!existsSync(cmdFile)) writeFileSync(cmdFile, CMD_CONTENT, "utf-8")
+
+// 自动生成默认配置
 const FILE_TOOL_CFG_SAMPLE = `{
   // 视觉分析模型（provider/modelId），file_tool set-provider 切换
   "model": "",
