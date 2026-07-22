@@ -1,22 +1,9 @@
 import { tool } from "@opencode-ai/plugin"
-import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, appendFileSync } from "node:fs"
+import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync } from "node:fs"
+import createLogger from "@xiaoqiong0v0/opencode-plugin-logger"
+
 import { rm } from "node:fs/promises"
 import { join } from "node:path"
-import { homedir } from "node:os"
-
-const LOG_DIR = join(homedir(), ".opencode", "plugins-log")
-function createLogger(name) {
-  const cfgFile = join(homedir(), ".config", "opencode", "plugin-logger.jsonc")
-  let cfg = {}
-  try { cfg = JSON.parse(readFileSync(cfgFile, "utf-8").replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "")) } catch {}
-  if (!cfg.enabled) return { loaded() {}, info() {}, error() {}, hook() {}, tool() {} }
-  if (!existsSync(LOG_DIR)) mkdirSync(LOG_DIR, { recursive: true })
-  const t = new Date()
-  const day = `${t.getFullYear()}${String(t.getMonth()+1).padStart(2,"0")}${String(t.getDate()).padStart(2,"0")}`
-  const logFile = join(LOG_DIR, day + ".log")
-  const write = (lvl, msg) => { try { appendFileSync(logFile, `[${t.toISOString()}] [${lvl}] ${name} ${msg}\n`) } catch {} }
-  return { loaded: () => write("INFO","loaded"), info: (m) => write("INFO",m), error: (m,e) => write("ERROR",e?`${m} — ${e.message||e}`:m), hook: (h,d) => write("HOOK",`${h}${d?" → "+d:""}`), tool: (t,a) => write("TOOL",`${t}(${JSON.stringify(a).slice(0,200)})`) }
-}
 
 const CONFIG_DIR = process.env.HOME || process.env.USERPROFILE
 const CONFIG_PATH = join(CONFIG_DIR, ".config/opencode/file-tool.jsonc")
