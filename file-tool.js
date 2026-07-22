@@ -15,7 +15,6 @@ const log = createLogger("file-tool")
 // 启动时加载配置缓存
 let _pluginCfg = {}
 try { if (existsSync(CONFIG_PATH)) _pluginCfg = readJsonc(CONFIG_PATH) } catch {}
-const MAX_CACHE_MSGS = (_pluginCfg.maxCacheMessages > 0) ? _pluginCfg.maxCacheMessages : 3
 
 // 自动生成默认配置
 const FILE_TOOL_CFG_SAMPLE = `{
@@ -30,9 +29,12 @@ const FILE_TOOL_CFG_SAMPLE = `{
   "lang": "en"
 }
 `
+// 自动生成默认配置后重新读取缓存
 if (!existsSync(CONFIG_PATH)) {
   try { writeFileSync(CONFIG_PATH, FILE_TOOL_CFG_SAMPLE, "utf-8") } catch {}
 }
+try { if (existsSync(CONFIG_PATH)) _pluginCfg = readJsonc(CONFIG_PATH) } catch {}
+const MAX_CACHE_MSGS = (_pluginCfg.maxCacheMessages > 0) ? _pluginCfg.maxCacheMessages : 3
 
 // 懒加载视觉模型配置，启动时不抛错
 let _visionCfg = null
@@ -118,14 +120,15 @@ const DESC = {
 
 function getVisionConfig() {
   if (_visionCfg) return _visionCfg
-  const cfg = existsSync(CONFIG_PATH) ? readJsonc(CONFIG_PATH) : {}
-  _visionCfg = resolveConfig(cfg)
+  const raw = _pluginCfg.model ? _pluginCfg : (existsSync(CONFIG_PATH) ? readJsonc(CONFIG_PATH) : {})
+  _visionCfg = resolveConfig(raw)
   return _visionCfg
 }
 
 function reloadVisionConfig() {
-  const cfg = existsSync(CONFIG_PATH) ? readJsonc(CONFIG_PATH) : {}
-  _visionCfg = resolveConfig(cfg)
+  const raw = existsSync(CONFIG_PATH) ? readJsonc(CONFIG_PATH) : {}
+  _pluginCfg = raw
+  _visionCfg = resolveConfig(raw)
 }
 
 function resolveConfig(fileConfig) {
