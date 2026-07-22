@@ -23,11 +23,15 @@ opencode-file-tool/
 
 ```bash
 npm install -g @xiaoqiong0v0/opencode-plugin-logger
+
+# 或者安装到 opencode 配置目录：
+cd ~/.config/opencode
+npm install @xiaoqiong0v0/opencode-plugin-logger
 ```
 
 ## 安装
 
-1. `npm install -g @xiaoqiong0v0/opencode-plugin-logger`
+1. 安装依赖：`cd ~/.config/opencode && npm install @xiaoqiong0v0/opencode-plugin-logger`
 2. 复制 `file-tool.js` 到 `~/.config/opencode/plugins/`
 3. （可选）复制 `command/file-tool.md` 到 `~/.config/opencode/command/`
 4. 重启 OpenCode
