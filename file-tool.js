@@ -22,7 +22,7 @@ const FILE_TOOL_CFG_SAMPLE = `{
   // 缓存消息数量上限，超过则删除最早的
   "maxCacheMessages": 3,
   // 工具提示语言：zh=中文, en=English
-  "lang": "zh"
+  "lang": "en"
 }
 `
 if (!existsSync(CONFIG_PATH)) {
@@ -36,14 +36,7 @@ const LANG = (() => { try { return readJsonc(CONFIG_PATH).lang || "zh" } catch {
 
 // 自动生成 command 定义（依赖 LANG）
 const CMD_DIR = join(CONFIG_DIR, ".config/opencode/command")
-const CMD_CONTENT = LANG === "en" ? `---
-description: Switch vision analysis model
----
-Call file_tool directly, don't delegate to other agents.
-Default: \`list-provider\` to list available model providers.
-Use \`set-provider <model>\` to switch models.
-Use \`list-cache\` to view cached files.
-` : `---
+const CMD_ZH = `---
 description: 切换视觉分析模型
 ---
 直接调用 file_tool 工具，不要委托给其他 agent。
@@ -51,9 +44,27 @@ description: 切换视觉分析模型
 使用 \`set-provider <模型名>\` 切换模型。
 使用 \`list-cache\` 查看缓存文件列表。
 `
+const CMD_EN = `---
+description: Switch vision analysis model
+---
+Call file_tool directly, don't delegate to other agents.
+Default: \`list-provider\` to list available model providers.
+Use \`set-provider <model>\` to switch models.
+Use \`list-cache\` to view cached files.
+`
+const CMD_CONTENT = LANG === "en" ? CMD_EN : CMD_ZH
 if (!existsSync(CMD_DIR)) mkdirSync(CMD_DIR, { recursive: true })
 const cmdFile = join(CMD_DIR, "file-tool.md")
-if (!existsSync(cmdFile)) writeFileSync(cmdFile, CMD_CONTENT, "utf-8")
+if (!existsSync(cmdFile)) {
+  writeFileSync(cmdFile, CMD_CONTENT, "utf-8")
+} else {
+  const existing = readFileSync(cmdFile, "utf-8")
+  if (existing === CMD_ZH || existing === CMD_EN) {
+    // 未被手动修改过，语言变更时自动替换
+    if (existing !== CMD_CONTENT) writeFileSync(cmdFile, CMD_CONTENT, "utf-8")
+  }
+  // 已被手动修改过，不做任何处理
+}
 
 const TX = {
   file_not_found:           { zh: "文件不存在: {path}", en: "File not found: {path}" },
