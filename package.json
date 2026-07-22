@@ -1,7 +1,9 @@
 {
-  "name": "opencode-file-tool",
-  "private": true,
+  "name": "@xiaoqiong0v0/opencode-file-tool",
+  "version": "1.0.0",
   "type": "module",
+  "description": "File cache & image analysis plugin for OpenCode",
+  "files": ["file-tool.js"],
   "dependencies": {
     "@xiaoqiong0v0/opencode-plugin-logger": "^1.0.0"
   }
