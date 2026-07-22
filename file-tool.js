@@ -12,6 +12,11 @@ const CACHE_DIR = join(CONFIG_DIR, ".opencode/plugins-cache")
 
 const log = createLogger("file-tool")
 
+// 启动时加载配置缓存
+let _pluginCfg = {}
+try { if (existsSync(CONFIG_PATH)) _pluginCfg = readJsonc(CONFIG_PATH) } catch {}
+const MAX_CACHE_MSGS = (_pluginCfg.maxCacheMessages > 0) ? _pluginCfg.maxCacheMessages : 3
+
 // 自动生成默认配置
 const FILE_TOOL_CFG_SAMPLE = `{
   // 视觉分析模型（provider/modelId），file_tool set-provider 切换
@@ -32,7 +37,7 @@ if (!existsSync(CONFIG_PATH)) {
 // 懒加载视觉模型配置，启动时不抛错
 let _visionCfg = null
 
-const LANG = (() => { try { return readJsonc(CONFIG_PATH).lang || "zh" } catch { return "zh" } })()
+const LANG = (() => { try { return readJsonc(CONFIG_PATH).lang || "en" } catch { return "en" } })()
 
 // 自动生成 command 定义（依赖 LANG）
 const CMD_DIR = join(CONFIG_DIR, ".config/opencode/command")
@@ -204,10 +209,8 @@ function writeSession(sid, data) {
   const dir = sessionDir(sid)
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
   // 超出上限时异步删除最早的消息及文件
-  let maxMsgs = 3
-  try { const cfg = readJsonc(CONFIG_PATH); if (cfg.maxCacheMessages > 0) maxMsgs = cfg.maxCacheMessages } catch {}
   const msgs = data.messages || []
-  if (msgs.length > maxMsgs) {
+  if (msgs.length > MAX_CACHE_MSGS) {
     const expired = msgs.splice(0, msgs.length - maxMsgs)
     for (const msg of expired) {
       for (const fid of (msg.fileIds || [])) {
