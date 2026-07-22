@@ -12,6 +12,7 @@
   "bugs": {
     "url": "https://github.com/xiaoqiong0v0/opencode-file-tool/issues"
   },
+  "license": "MIT",
   "dependencies": {
     "@xiaoqiong0v0/opencode-plugin-logger": "^1.0.0"
   }
