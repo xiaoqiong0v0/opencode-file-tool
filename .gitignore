@@ -1,0 +1,4 @@
+.opencode/
+.tmp/
+dist/
+node_modules/

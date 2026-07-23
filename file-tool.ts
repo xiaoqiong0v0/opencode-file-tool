@@ -1,20 +1,25 @@
 import { tool } from "@opencode-ai/plugin"
+import type { Plugin } from "@opencode-ai/plugin"
 import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync } from "node:fs"
 import createLogger from "@xiaoqiong0v0/opencode-plugin-logger"
-
+import type { Logger } from "@xiaoqiong0v0/opencode-plugin-logger"
 import { rm } from "node:fs/promises"
 import { join } from "node:path"
 
-const CONFIG_DIR = process.env.HOME || process.env.USERPROFILE
+const CONFIG_DIR = process.env.HOME || process.env.USERPROFILE || ""
 const CONFIG_PATH = join(CONFIG_DIR, ".config/opencode/file-tool.jsonc")
 const OPENCODE_CONFIG = join(CONFIG_DIR, ".config/opencode/opencode.json")
 const CACHE_DIR = join(CONFIG_DIR, ".opencode/plugins-cache")
-const CMD_DIR = join(CONFIG_DIR, ".config/opencode/command")
 
-const log = createLogger("file-tool")
+interface FileEntry { id: number; filename: string; mime: string; msgId: string }
+interface MessageGroup { msgId: string; fileIds: number[] }
+interface SessionData { nextId: number; files: Record<number, FileEntry>; messages: MessageGroup[] }
+interface Cfg { model?: string; apiKey?: string; apiBaseUrl?: string; baseURL?: string; modelId?: string; maxTokens?: number; timeout?: number; maxCacheMessages?: number; lang?: string }
+interface FindResult { store: SessionData; file: FileEntry }
 
-// === 全局配置 ===
-let _cfg = null
+const log: Logger = createLogger("file-tool")
+
+let _cfg: Cfg | null = null
 const FILE_TOOL_CFG_SAMPLE = `{
   // 视觉分析模型（provider/modelId），file_tool set-provider 切换
   "model": "",
@@ -27,55 +32,11 @@ const FILE_TOOL_CFG_SAMPLE = `{
   "lang": "en"
 }
 `
-const CMD_ZH = `---
-description: 切换视觉分析模型
----
-直接调用 file_tool 工具，不要委托给其他 agent。
-没有参数默认传递：\`list-provider\`，列出可选择模型提供者。
-使用 \`set-provider <模型名>\` 切换模型。
-使用 \`list-cache\` 查看缓存文件列表。
-`
-const CMD_EN = `---
-description: Switch vision analysis model
----
-Call file_tool directly, don't delegate to other agents.
-Default: \`list-provider\` to list available model providers.
-Use \`set-provider <model>\` to switch models.
-Use \`list-cache\` to view cached files.
-`
 
 let MAX_CACHE_MSGS = 3
-let LANG = "en"
+let LANG: "zh" | "en" = "en"
 
-function loadCfg() {
-  if (!existsSync(CONFIG_PATH)) {
-    try { writeFileSync(CONFIG_PATH, FILE_TOOL_CFG_SAMPLE, "utf-8") } catch {}
-  }
-  const raw = existsSync(CONFIG_PATH) ? readJsonc(CONFIG_PATH) : {}
-  _cfg = resolveConfig(raw)
-  MAX_CACHE_MSGS = (raw.maxCacheMessages > 0) ? raw.maxCacheMessages : 3
-  LANG = raw.lang || "en"
-  // 自动生成 command 定义
-  const cmdLang = raw.lang || "en"
-  const content = cmdLang === "en" ? CMD_EN : CMD_ZH
-  if (!existsSync(CMD_DIR)) mkdirSync(CMD_DIR, { recursive: true })
-  const cmdFile = join(CMD_DIR, "file-tool.md")
-  if (!existsSync(cmdFile)) {
-    writeFileSync(cmdFile, content, "utf-8")
-  } else {
-    const existing = readFileSync(cmdFile, "utf-8")
-    if (existing === CMD_ZH || existing === CMD_EN) {
-      if (existing !== content) writeFileSync(cmdFile, content, "utf-8")
-    }
-  }
-  return _cfg
-}
-
-function reloadCfg() { loadCfg() }
-
-loadCfg()
-
-const TX = {
+const TX: Record<string, { zh: string; en: string }> = {
   file_not_found:           { zh: "文件不存在: {path}", en: "File not found: {path}" },
   file_id_not_found:        { zh: "文件ID不存在: {id}", en: "File ID not found: {id}" },
   file_data_not_found:      { zh: "文件数据不存在: {id}", en: "File data not found: {id}" },
@@ -94,15 +55,37 @@ const TX = {
   meta_image:               { zh: "图片", en: "Image" },
   meta_error:               { zh: "分析出错", en: "Error" },
   no_cache:                 { zh: "[] (无缓存)", en: "[] (no cache)" },
+  vision_prompt_default:    { zh: "请详细描述这张图片的内容，返回格式: [文件名] 描述", en: "Describe this image in detail, format: [filename] description" },
+  err_resolve_config:       { zh: "无法解析模型配置: {model}。请在 file-tool.jsonc 中配置 model (provider/modelId) 或 apiKey+apiBaseUrl+model", en: "Cannot resolve model config: {model}. Set model (provider/modelId) or apiKey+apiBaseUrl+model in file-tool.jsonc" },
+  err_api:                  { zh: "API {status}: {msg}", en: "API {status}: {msg}" },
+  empty_response:           { zh: "(空)", en: "(empty)" },
+  cmd_desc:                 { zh: "切换视觉分析模型", en: "Switch vision analysis model" },
+  cmd_template:             { zh: "直接调用 file_tool 工具。默认 `list-provider`，`set-provider <模型名>` 切换模型，`list-cache` 查看缓存。", en: "Call file_tool tool directly. Default: `list-provider`. Use `set-provider <model>` to switch. Use `list-cache` to view cached files." },
 }
 
-const T = (key, params) => {
-  const t = (TX[key] || { zh: key, en: key })[LANG]
+const T = (key: string, params?: Record<string, string>): string => {
+  const entry = TX[key] || { zh: key, en: key }
+  const t = LANG === "zh" ? entry.zh : entry.en
   if (!params) return t
   return Object.entries(params).reduce((s, [k, v]) => s.replace(`{${k}}`, v), t)
 }
 
-const DESC = {
+function loadCfg() {
+  if (!existsSync(CONFIG_PATH)) {
+    try { writeFileSync(CONFIG_PATH, FILE_TOOL_CFG_SAMPLE, "utf-8") } catch {}
+  }
+  const raw: Record<string, unknown> = existsSync(CONFIG_PATH) ? readJsonc(CONFIG_PATH) : {}
+  _cfg = resolveConfig(raw)
+  MAX_CACHE_MSGS = (raw.maxCacheMessages as number > 0) ? (raw.maxCacheMessages as number) : 3
+  LANG = ((raw.lang as string) === "zh" ? "zh" : "en")
+  return _cfg
+}
+
+function reloadCfg() { loadCfg() }
+
+try { loadCfg() } catch (e) { log.error("初始化失败", e instanceof Error ? e : Error(String(e))) }
+
+const DESC: Record<string, { zh: string; en: string }> = {
   analyze_image: {
     zh: "用多模态模型分析图片。先调 file_tool list-cache 拿到文件ID，再用 file_id:N 分析。",
     en: "Analyze images with multimodal model. Call file_tool list-cache first to get file IDs, then use file_id:N.",
@@ -120,19 +103,19 @@ const DESC = {
   analyze_args_prompt: { zh: "分析提示", en: "prompt" },
 }
 
-function getCfg() {
+function getCfg(): Cfg {
   if (_cfg) return _cfg
   const raw = existsSync(CONFIG_PATH) ? readJsonc(CONFIG_PATH) : {}
   _cfg = resolveConfig(raw)
   return _cfg
 }
 
-function resolveConfig(fileConfig) {
-  const model = fileConfig.model
+function resolveConfig(fileConfig: Record<string, unknown>): Cfg {
+  const model = fileConfig.model as string | undefined
   if (!model) throw new Error(T("config_error"))
   if (fileConfig.apiKey && fileConfig.apiBaseUrl) {
     const mId = model.includes("/") ? model.split("/").pop() : model
-    return { apiKey: fileConfig.apiKey, baseURL: fileConfig.apiBaseUrl, modelId: mId, maxTokens: fileConfig.maxTokens || 4096, timeout: fileConfig.timeout || 60000 }
+    return { model, apiKey: fileConfig.apiKey as string, baseURL: fileConfig.apiBaseUrl as string, modelId: mId, maxTokens: (fileConfig.maxTokens as number) || 4096, timeout: (fileConfig.timeout as number) || 60000 }
   }
   if (model.includes("/")) {
     const [provider, modelId] = model.split("/")
@@ -141,85 +124,75 @@ function resolveConfig(fileConfig) {
       const oc = JSON.parse(raw)
       const prov = oc.provider?.[provider]
       if (prov?.options?.apiKey && prov?.options?.baseURL)
-        return { apiKey: prov.options.apiKey, baseURL: prov.options.baseURL, modelId, maxTokens: fileConfig.maxTokens || 4096, timeout: fileConfig.timeout || 60000 }
+        return { model, apiKey: prov.options.apiKey, baseURL: prov.options.baseURL, modelId, maxTokens: (fileConfig.maxTokens as number) || 4096, timeout: (fileConfig.timeout as number) || 60000 }
     } catch {}
   }
-  throw new Error(`无法解析模型配置: ${model}。请在 file-tool.jsonc 中配置 model (provider/modelId) 或 apiKey+apiBaseUrl+model`)
+  throw new Error(T("err_resolve_config", { model }))
 }
 
-function readJsonc(path) {
+function readJsonc(path: string): Record<string, unknown> {
   const raw = readFileSync(path, "utf-8").replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "")
   return JSON.parse(raw)
 }
 
-async function callVisionApi(imageUrl, prompt) {
+async function callVisionApi(imageUrl: string, prompt: string): Promise<string> {
   const cfg = getCfg()
   const resp = await fetch(`${cfg.baseURL}/chat/completions`, {
     method: "POST",
     headers: { Authorization: `Bearer ${cfg.apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ model: cfg.modelId, messages: [{ role: "user", content: [{ type: "text", text: prompt || "请详细描述这张图片的内容，返回格式: [文件名] 描述" }, { type: "image_url", image_url: { url: imageUrl } }] }], max_tokens: cfg.maxTokens }),
-    signal: AbortSignal.timeout(cfg.timeout),
+    body: JSON.stringify({ model: cfg.modelId, messages: [{ role: "user", content: [{ type: "text", text: prompt || T("vision_prompt_default") }, { type: "image_url" as const, image_url: { url: imageUrl } }] }], max_tokens: cfg.maxTokens }),
+    signal: AbortSignal.timeout(cfg.timeout || 60000),
   })
-  if (!resp.ok) throw new Error(`API ${resp.status}: ${(await resp.text().catch(() => "unknown")).slice(0, 200)}`)
+  if (!resp.ok) throw new Error(T("err_api", { status: String(resp.status), msg: (await resp.text().catch(() => "unknown")).slice(0, 200) }))
   const data = await resp.json()
   const msg = data.choices?.[0]?.message
-  return msg?.content || msg?.reasoning_content || "(空)"
+  return msg?.content || msg?.reasoning_content || T("empty_response")
 }
 
-// ====== 会话栈 ======
-const SessionStack = {
-  _stack: ["default"],
-  _main: "default",
-  push(id) {
-    if (this._stack.length === 1 && this._stack[0] === "default") {
-      this._main = id
-    }
-    this._stack.push(id)
-  },
-  remove(id) {
-    const idx = this._stack.indexOf(id)
-    if (idx >= 0) this._stack.splice(idx)
-    if (this._stack.length === 0) this._stack.push("default")
-  },
-  get current() { return this._stack[this._stack.length - 1] },
-  get main() {
-    try { const v = readFileSync(join(CACHE_DIR, ".main-session"), "utf-8").trim(); if (v) return v } catch {}
-    return this._main && this._main !== "default" ? this._main : "default"
-  },
-  remove(id) {
-    const idx = this._stack.indexOf(id)
-    if (idx >= 0) this._stack.splice(idx)
-    if (this._stack.length === 0) this._stack.push("default")
-  },
-  get current() { return this._stack[this._stack.length - 1] },
+const sessionParents = new Map<string, string>()
+const knownSessions = new Set<string>()
+
+function getRootSession(sid: string): string {
+  let current = sid
+  while (sessionParents.has(current)) current = sessionParents.get(current)!
+  return current
 }
 
-// ====== 文件缓存：~/.opencode/plugins-cache/{sessionId}/files.json ======
-function sessionDir(sid) { return join(CACHE_DIR, sid) }
+function findFileInChain(sid: string, fid: number): FindResult | null {
+  const store = readSession(sid)
+  const file = store.files[fid]
+  if (file) return { store, file }
+  const parentSid = sessionParents.get(sid)
+  if (parentSid) return findFileInChain(parentSid, fid)
+  return null
+}
 
-function filesDir(sid) { const d = join(sessionDir(sid), "files"); if (!existsSync(d)) mkdirSync(d, { recursive: true }); return d }
+function sessionDir(sid: string): string { return join(CACHE_DIR, sid) }
 
-function readSession(sid) {
+function filesDir(sid: string): string {
+  const d = join(sessionDir(sid), "files")
+  if (!existsSync(d)) mkdirSync(d, { recursive: true })
+  return d
+}
+
+function readSession(sid: string): SessionData {
   try { return JSON.parse(readFileSync(join(sessionDir(sid), "files.json"), "utf-8")) }
   catch { return { nextId: 1, files: {}, messages: [] } }
 }
 
-function writeSession(sid, data) {
+function writeSession(sid: string, data: SessionData): void {
   const dir = sessionDir(sid)
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
-  // 超出上限时异步删除最早的消息及文件
   const msgs = data.messages || []
   if (msgs.length > MAX_CACHE_MSGS) {
-    const expired = msgs.splice(0, msgs.length - maxMsgs)
+    const expired = msgs.splice(0, msgs.length - MAX_CACHE_MSGS)
     for (const msg of expired) {
       for (const fid of (msg.fileIds || [])) {
         delete data.files[fid]
         const path = join(dir, "files", fid + ".b64")
-        rm(path, { force: true })
-        .then(() => {
+        rm(path, { force: true }).then(() => {
           log.info(`${sid}: Deleted file ${path}`)
-        })
-        .catch((err) => {
+        }).catch((err: Error) => {
           log.error(`${sid}: Failed to delete file ${path}`, err)
         })
       }
@@ -228,77 +201,78 @@ function writeSession(sid, data) {
   writeFileSync(join(dir, "files.json"), JSON.stringify(data, null, 2))
 }
 
-function writeFileData(sid, fid, url) {
-  // url 格式: "data:image/png;base64,iVBOR..."，只存 base64 部分
+function writeFileData(sid: string, fid: number, url: string): void {
   const b64 = url.replace(/^data:\w+\/\w+;base64,/, "")
   writeFileSync(join(filesDir(sid), fid + ".b64"), b64, "utf-8")
 }
 
-function readFileData(sid, fid) {
+function readFileData(sid: string, fid: number): string | null {
   try {
     const b64 = readFileSync(join(filesDir(sid), fid + ".b64"), "utf-8")
     const meta = readSession(sid).files[fid]
     return `data:${meta?.mime || "image/png"};base64,${b64}`
   } catch {
-    // 当前会话没有，尝试主会话
-    try {
-      const mainSid = SessionStack.main
-      if (mainSid !== sid) return readFileData(mainSid, fid)
-    } catch {}
+    const parentSid = sessionParents.get(sid)
+    if (parentSid) return readFileData(parentSid, fid)
     return null
   }
 }
 
-function deleteSession(sid) {
+function deleteSession(sid: string): void {
   const dir = sessionDir(sid)
   if (existsSync(dir)) rmSync(dir, { recursive: true, force: true })
 }
 
-
-export const FileTool = async () => {
+// V1 export：工具 + 事件
+export const FileTool: Plugin = async () => {
   log.loaded()
   return {
+    config: async (config) => {
+      const commands = config.command ?? {}
+      commands["file-tool"] = { template: T("cmd_template"), description: T("cmd_desc") }
+      config.command = commands
+    },
     event: async ({ event }) => {
-      if (event.type === "session.created" && event.properties?.sessionID)
-        SessionStack.push(event.properties.sessionID)
-      if (event.type === "session.deleted" && event.properties?.sessionID) {
-        deleteSession(event.properties.sessionID)
-        SessionStack.remove(event.properties.sessionID)
+      const props = event.properties as Record<string, unknown> | undefined
+      const sid = props?.sessionID as string | undefined
+      if (event.type === "session.created" && sid) {
+        knownSessions.add(sid)
+        if (props?.parentID) sessionParents.set(sid, props.parentID as string)
       }
-      if (event.type === "message.part.updated" && event.properties?.part?.type === "file" && (event.properties.part.mime || "").startsWith("image/")) {
-        const part = event.properties.part
-        const fn = part.filename || part.name || ""
-        if (fn) {
-          const sid = event.properties.sessionID || SessionStack.current
-          // 首次获取到真实会话ID时更新栈并记录主会话ID
-          if (sid && SessionStack.current === "default" && sid !== "default") {
-            SessionStack._stack = [sid]
-            SessionStack._main = sid
-            try { writeFileSync(join(CACHE_DIR, ".main-session"), sid, "utf-8") } catch {}
+      if (event.type === "session.updated" && sid) {
+        if (!knownSessions.has(sid)) knownSessions.add(sid)
+      }
+      if (event.type === "session.deleted" && sid) {
+        deleteSession(sid)
+        knownSessions.delete(sid)
+        sessionParents.delete(sid)
+        for (const [child, parent] of sessionParents) {
+          if (parent === sid) sessionParents.delete(child)
+        }
+      }
+      if (event.type === "message.part.updated") {
+        const part = props?.part as Record<string, unknown> | undefined
+        if (part?.type === "file" && ((part?.mime as string) || "").startsWith("image/")) {
+          const fn = (part.filename || part.name || "") as string
+          if (fn) {
+            const data = readSession(sid || "")
+            if (!sid) return
+            const fid = data.nextId++
+            const msgId = (part.messageID || "") as string
+            data.files[fid] = { id: fid, filename: fn, mime: part.mime as string, msgId }
+            writeFileData(sid, fid, (part.url || "") as string)
+            const msgs = data.messages
+            const last = msgs[msgs.length - 1]
+            if (last && last.msgId === msgId) {
+              last.fileIds.push(fid)
+            } else {
+              msgs.push({ msgId, fileIds: [fid] })
+            }
+            writeSession(sid, data)
           }
-          // 首次贴图也记录主会话ID（适配主会话未触发session.created的场景）
-          if (sid && !existsSync(join(CACHE_DIR, ".main-session"))) {
-            try { writeFileSync(join(CACHE_DIR, ".main-session"), sid, "utf-8") } catch {}
-          }
-          const data = readSession(sid)
-          const fid = data.nextId++
-          const msgId = part.messageID || ""
-          // 添加到文件映射
-          data.files[fid] = { id: fid, filename: fn, mime: part.mime, msgId }
-          writeFileData(sid, fid, part.url || "")
-          // 按消息分组
-          const msgs = data.messages
-          const last = msgs[msgs.length - 1]
-          if (last && last.msgId === msgId) {
-            last.fileIds.push(fid)
-          } else {
-            msgs.push({ msgId, fileIds: [fid] })
-          }
-          writeSession(sid, data)
         }
       }
     },
-
     tool: {
       analyze_image: tool({
         description: DESC.analyze_image[LANG],
@@ -308,20 +282,16 @@ export const FileTool = async () => {
           prompt: tool.schema.string().optional().describe(DESC.analyze_args_prompt[LANG]),
         },
         execute: async ({ source, data, prompt }, context) => {
-          let imageUrl, fileName = ""
+          let imageUrl: string, fileName = ""
           if (source === "file_path" && data.startsWith("file_id:")) {
             const fid = parseInt(data.slice(8), 10)
-            const store = readSession(context.sessionID)
-            let file = store.files[fid]
-            if (!file && context.sessionID !== SessionStack.main) {
-              const mainStore = readSession(SessionStack.main)
-              file = mainStore.files[fid]
-            }
-            if (!file) { context.metadata?.({ title: T("meta_failed") }); return T("file_id_not_found", { id: fid }) }
+            const found = findFileInChain(context.sessionID, fid)
+            if (!found) { context.metadata?.({ title: T("meta_failed") }); return T("file_id_not_found", { id: String(fid) }) }
+            const file = found.file
             if (!file.mime.startsWith("image/")) { context.metadata?.({ title: T("meta_skip") }); return T("not_an_image", { name: file.filename, mime: file.mime }) }
             fileName = file.filename
-            imageUrl = readFileData(context.sessionID, fid)
-            if (!imageUrl) { context.metadata?.({ title: T("meta_failed") }); return T("file_data_not_found", { id: fid }) }
+            imageUrl = readFileData(context.sessionID, fid) || ""
+            if (!imageUrl) { context.metadata?.({ title: T("meta_failed") }); return T("file_data_not_found", { id: String(fid) }) }
             prompt = prompt || T("describe_image", { name: fileName })
           } else if (source === "file_path") {
             if (!existsSync(data)) {
@@ -329,21 +299,25 @@ export const FileTool = async () => {
               if (existsSync(tryPath)) data = tryPath
             }
             if (!existsSync(data)) { context.metadata?.({ title: T("meta_not_found") }); return T("file_not_found", { path: data }) }
-            const ext = data.split(".").pop().toLowerCase()
-            const mime = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", bmp: "image/bmp", gif: "image/gif", webp: "image/webp" }[ext] || "image/png"
+            const ext = data.split(".").pop()?.toLowerCase() || ""
+            const mimeMap: Record<string, string> = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", bmp: "image/bmp", gif: "image/gif", webp: "image/webp" }
+            const mime = mimeMap[ext] || "image/png"
             fileName = data.split(/[/\\]/).pop() || ""
             imageUrl = `data:${mime};base64,${readFileSync(data).toString("base64")}`
           } else if (source === "base64") {
             imageUrl = `data:image/png;base64,${data.replace(/^data:image\/\w+;base64,/, "")}`
           } else { return T("unsupported_source", { source }) }
           try {
-            const result = await callVisionApi(imageUrl, prompt)
+            const result = await callVisionApi(imageUrl, prompt || "")
             context.metadata?.({ title: `[Vision] ${fileName || T("meta_image")}`, metadata: { sessionID: context.sessionID, messageID: context.messageID } })
-            return T("[Vision] ", "[Vision] ") + result
-          } catch (e) { context.metadata?.({ title: T("meta_error") }); return T(`[Vision Error] ${e.message}`, `[Vision Error] ${e.message}`) }
+            return "[Vision] " + result
+          } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : String(e)
+            context.metadata?.({ title: T("meta_error") })
+            return `[Vision Error] ${msg}`
+          }
         },
       }),
-
       file_tool: tool({
         description: DESC.file_tool[LANG],
         args: { command: tool.schema.string().describe(DESC.file_tool_args[LANG]) },
@@ -351,13 +325,13 @@ export const FileTool = async () => {
           const cmd = command.trim()
           if (cmd === "list-provider") {
             const cfg = existsSync(CONFIG_PATH) ? readJsonc(CONFIG_PATH) : {}
-            const models = []
+            const models: string[] = []
             const oc = JSON.parse(readFileSync(OPENCODE_CONFIG, "utf-8"))
             for (const [pName, pVal] of Object.entries(oc.provider || {}))
-              for (const mId of Object.keys(pVal.models || {}))
+              for (const mId of Object.keys((pVal as Record<string, unknown>).models || {}))
                 models.push(`${pName}/${mId}`)
             return T("current_model", {
-              model: cfg.model || T("model_not_set"),
+              model: (cfg.model as string) || T("model_not_set"),
               list: models.map(m => "  " + m).join("\n"),
             })
           }
@@ -374,8 +348,8 @@ export const FileTool = async () => {
             const arg = cmd === "list-cache" ? "1" : cmd.slice(11).trim()
             let targetSid = context.sessionID
             let limit = arg
-            if (arg === "main") { targetSid = SessionStack.main; limit = "1" }
-            if (arg.startsWith("main ")) { targetSid = SessionStack.main; limit = arg.slice(5).trim() }
+            if (arg === "main") { targetSid = getRootSession(context.sessionID); limit = "1" }
+            if (arg.startsWith("main ")) { targetSid = getRootSession(context.sessionID); limit = arg.slice(5).trim() }
             const data = readSession(targetSid)
             const msgs = data.messages || []
             if (msgs.length === 0) return `${targetSid}: ${T("no_cache")}`
