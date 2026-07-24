@@ -9,7 +9,7 @@ import { join } from "node:path"
 const CONFIG_DIR = process.env.HOME || process.env.USERPROFILE || ""
 const CONFIG_PATH = join(CONFIG_DIR, ".config/opencode/file-tool.jsonc")
 const OPENCODE_CONFIG = join(CONFIG_DIR, ".config/opencode/opencode.json")
-const CACHE_DIR = join(CONFIG_DIR, ".opencode/plugins-cache")
+const CACHE_DIR = join(CONFIG_DIR, ".opencode/plugins-cache", "file-tool")
 
 interface FileEntry { id: number; filename: string; mime: string; msgId: string }
 interface MessageGroup { msgId: string; fileIds: number[] }
