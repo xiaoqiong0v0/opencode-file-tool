@@ -195,8 +195,9 @@ function writeSession(sid: string, data: SessionData): void {
         }).catch((err: Error) => {
           log.error(`${sid}: Failed to delete file ${path}`, err)
         })
-      }
-    }
+  }
+}
+
   }
   writeFileSync(join(dir, "files.json"), JSON.stringify(data, null, 2))
 }
@@ -375,3 +376,5 @@ export const FileTool: Plugin = async () => {
     },
   }
 }
+
+export { FileTool as default }

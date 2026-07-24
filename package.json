@@ -1,6 +1,6 @@
 {
   "name": "@xiaoqiong0v0/opencode-file-tool",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "type": "module",
   "description": "File cache & image analysis plugin for OpenCode. Auto-caches pasted images, analyzes via multimodal model.",
   "files": [
@@ -12,7 +12,7 @@
     ".": "./dist/file-tool.js"
   },
   "scripts": {
-    "build": "tsc && node -e \"require('fs').copyFileSync('dist/file-tool.js', '.opencode/plugins/file-tool.js')\"",
+    "build": "tsc && node -e \"try{require('fs').copyFileSync('dist/file-tool.js', '.opencode/plugins/file-tool.js')}catch{}\"",
     "prepublishOnly": "npm run build"
   },
   "repository": {
@@ -24,11 +24,13 @@
     "url": "https://github.com/xiaoqiong0v0/opencode-file-tool/issues"
   },
   "license": "MIT",
+  "peerDependencies": {
+    "@opencode-ai/plugin": "*"
+  },
   "dependencies": {
     "@xiaoqiong0v0/opencode-plugin-logger": "^1.0.2"
   },
   "devDependencies": {
-    "@opencode-ai/plugin": "^1.18.4",
     "@types/node": "^26.1.1",
     "typescript": "^7.0.2"
   }
