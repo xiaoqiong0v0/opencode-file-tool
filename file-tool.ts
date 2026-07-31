@@ -35,32 +35,37 @@ const FILE_TOOL_CFG_SAMPLE = `{
 
 let MAX_CACHE_MSGS = 3
 let LANG: "zh" | "en" = "en"
+let ENABLED = true
 
 const TX: Record<string, { zh: string; en: string }> = {
-  file_not_found:           { zh: "文件不存在: {path}", en: "File not found: {path}" },
-  file_id_not_found:        { zh: "文件ID不存在: {id}", en: "File ID not found: {id}" },
-  file_data_not_found:      { zh: "文件数据不存在: {id}", en: "File data not found: {id}" },
-  not_an_image:             { zh: "不是图片文件: {name} ({mime})", en: "Not an image: {name} ({mime})" },
-  unsupported_source:       { zh: "不支持的图片来源: {source}", en: "Unsupported source: {source}" },
-  describe_image:           { zh: "请详细描述这张图片（{name}）的内容", en: "Describe this image ({name})" },
-  current_model:            { zh: "当前模型: {model}\n可用模型:\n{list}", en: "Current model: {model}\nAvailable models:\n{list}" },
-  model_not_set:            { zh: "未设置", en: "not set" },
-  model_switched:           { zh: "视觉模型已切换为: {model}", en: "Vision model set to: {model}" },
-  specify_model:            { zh: "请指定模型名", en: "Specify a model name" },
-  unknown_cmd:              { zh: "未知命令: {cmd}\n可用: list-provider, set-provider <model>, list-cache [all|N|main|main N]", en: "Unknown command: {cmd}\nAvailable: list-provider, set-provider <model>, list-cache [all|N|main|main N]" },
-  config_error:             { zh: "请在 file-tool.jsonc 中配置 model (provider/modelId) 或 apiKey+apiBaseUrl+model", en: "Set model (provider/modelId) or apiKey+apiBaseUrl+model in file-tool.jsonc" },
-  meta_failed:              { zh: "分析失败", en: "Failed" },
-  meta_skip:                { zh: "跳过", en: "Skip" },
-  meta_not_found:           { zh: "文件不存在", en: "Not found" },
-  meta_image:               { zh: "图片", en: "Image" },
-  meta_error:               { zh: "分析出错", en: "Error" },
-  no_cache:                 { zh: "[] (无缓存)", en: "[] (no cache)" },
-  vision_prompt_default:    { zh: "请详细描述这张图片的内容，返回格式: [文件名] 描述", en: "Describe this image in detail, format: [filename] description" },
-  err_resolve_config:       { zh: "无法解析模型配置: {model}。请在 file-tool.jsonc 中配置 model (provider/modelId) 或 apiKey+apiBaseUrl+model", en: "Cannot resolve model config: {model}. Set model (provider/modelId) or apiKey+apiBaseUrl+model in file-tool.jsonc" },
-  err_api:                  { zh: "API {status}: {msg}", en: "API {status}: {msg}" },
-  empty_response:           { zh: "(空)", en: "(empty)" },
-  cmd_desc:                 { zh: "切换视觉分析模型", en: "Switch vision analysis model" },
-  cmd_template:             { zh: "直接调用 file_tool 工具。默认 `list-provider`，`set-provider <模型名>` 切换模型，`list-cache` 查看缓存。", en: "Call file_tool tool directly. Default: `list-provider`. Use `set-provider <model>` to switch. Use `list-cache` to view cached files." },
+  file_not_found: { zh: "文件不存在: {path}", en: "File not found: {path}" },
+  file_id_not_found: { zh: "文件ID不存在: {id}", en: "File ID not found: {id}" },
+  file_data_not_found: { zh: "文件数据不存在: {id}", en: "File data not found: {id}" },
+  not_an_image: { zh: "不是图片文件: {name} ({mime})", en: "Not an image: {name} ({mime})" },
+  unsupported_source: { zh: "不支持的图片来源: {source}", en: "Unsupported source: {source}" },
+  describe_image: { zh: "请详细描述这张图片（{name}）的内容", en: "Describe this image ({name})" },
+  current_model: { zh: "当前模型: {model}\n可用模型:\n{list}", en: "Current model: {model}\nAvailable models:\n{list}" },
+  model_not_set: { zh: "未设置", en: "not set" },
+  model_switched: { zh: "视觉模型已切换为: {model}", en: "Vision model set to: {model}" },
+  specify_model: { zh: "请指定模型名", en: "Specify a model name" },
+  unknown_cmd: { zh: "未知命令: {cmd}\n可用: list-provider, set-provider <model>, list-cache [all|N|main|main N], enable, disable, status", en: "Unknown command: {cmd}\nAvailable: list-provider, set-provider <model>, list-cache [all|N|main|main N], enable, disable, status" },
+  config_error: { zh: "请在 file-tool.jsonc 中配置 model (provider/modelId) 或 apiKey+apiBaseUrl+model", en: "Set model (provider/modelId) or apiKey+apiBaseUrl+model in file-tool.jsonc" },
+  meta_failed: { zh: "分析失败", en: "Failed" },
+  meta_skip: { zh: "跳过", en: "Skip" },
+  meta_not_found: { zh: "文件不存在", en: "Not found" },
+  meta_image: { zh: "图片", en: "Image" },
+  meta_error: { zh: "分析出错", en: "Error" },
+  no_cache: { zh: "[] (无缓存)", en: "[] (no cache)" },
+  enabled: { zh: "已启用", en: "Enabled" },
+  disabled: { zh: "已禁用", en: "Disabled" },
+  status: { zh: "图片缓存: {s}\n视觉模型: {m}", en: "Image cache: {s}\nVision model: {m}" },
+  status_cmd: { zh: "查看缓存开关状态", en: "Show cache status" },
+  vision_prompt_default: { zh: "请详细描述这张图片的内容，返回格式: [文件名] 描述", en: "Describe this image in detail, format: [filename] description" },
+  err_resolve_config: { zh: "无法解析模型配置: {model}。请在 file-tool.jsonc 中配置 model (provider/modelId) 或 apiKey+apiBaseUrl+model", en: "Cannot resolve model config: {model}. Set model (provider/modelId) or apiKey+apiBaseUrl+model in file-tool.jsonc" },
+  err_api: { zh: "API {status}: {msg}", en: "API {status}: {msg}" },
+  empty_response: { zh: "(空)", en: "(empty)" },
+  cmd_desc: { zh: "切换视觉分析模型", en: "Switch vision analysis model" },
+  cmd_template: { zh: "直接调用 file_tool 工具。`list-provider` 列出模型，`set-provider <模型名>` 切换模型，`list-cache` 查看缓存，`enable/disable` 开关图片缓存，`status` 查看状态。", en: "Call file_tool tool directly. `list-provider` list models, `set-provider <model>` switch, `list-cache` view cache, `enable/disable` toggle cache, `status` show state." },
 }
 
 const T = (key: string, params?: Record<string, string>): string => {
@@ -72,12 +77,13 @@ const T = (key: string, params?: Record<string, string>): string => {
 
 function loadCfg() {
   if (!existsSync(CONFIG_PATH)) {
-    try { writeFileSync(CONFIG_PATH, FILE_TOOL_CFG_SAMPLE, "utf-8") } catch {}
+    try { writeFileSync(CONFIG_PATH, FILE_TOOL_CFG_SAMPLE, "utf-8") } catch { }
   }
   const raw: Record<string, unknown> = existsSync(CONFIG_PATH) ? readJsonc(CONFIG_PATH) : {}
   _cfg = resolveConfig(raw)
   MAX_CACHE_MSGS = (raw.maxCacheMessages as number > 0) ? (raw.maxCacheMessages as number) : 3
   LANG = ((raw.lang as string) === "zh" ? "zh" : "en")
+  ENABLED = raw.enabled !== false
   return _cfg
 }
 
@@ -91,12 +97,12 @@ const DESC: Record<string, { zh: string; en: string }> = {
     en: "Analyze images with multimodal model. Call file_tool list-cache first to get file IDs, then use file_id:N.",
   },
   file_tool: {
-    zh: "文件缓存管理。当你在上下文中看到 [Image N] 或收到 Cannot read 图片错误时，立即调 list-cache 获取文件ID，再用 analyze_image file_id:N 分析。",
-    en: "File cache manager. When you see [Image N] or a Cannot read image error, call list-cache to get file IDs, then use analyze_image file_id:N.",
+    zh: "文件缓存管理。当你在上下文中看到 [Image N] 或收到 Cannot read 图片错误时，立即调 list-cache 获取文件ID，再用 analyze_image file_id:N 分析。主模型能直接读取图片时建议用 `disable` 关闭缓存。",
+    en: "File cache manager. When you see [Image N] or a Cannot read image error, call list-cache to get file IDs, then use analyze_image file_id:N. If the main model can read images directly, use `disable` to turn off caching.",
   },
   file_tool_args: {
-    zh: "list-cache, list-cache main, list-provider, set-provider <model>",
-    en: "list-cache, list-cache main, list-provider, set-provider <model>",
+    zh: "list-cache [all|N|main|main N], list-provider, set-provider <model>, enable, disable, status — list-cache 查看缓存(不参数=最近1条,all=全部,N=最近N条,main=主会话,main N=主会话最近N条)",
+    en: "list-cache [all|N|main|main N], list-provider, set-provider <model>, enable, disable, status — list-cache: no arg=last 1, all=all, N=last N, main=root, main N=last N from root",
   },
   analyze_args_source: { zh: "file_path=file_id:N", en: "file_path=file_id:N" },
   analyze_args_data: { zh: "file_id:N 或 base64", en: "file_id:N or base64" },
@@ -125,7 +131,7 @@ function resolveConfig(fileConfig: Record<string, unknown>): Cfg {
       const prov = oc.provider?.[provider]
       if (prov?.options?.apiKey && prov?.options?.baseURL)
         return { model, apiKey: prov.options.apiKey, baseURL: prov.options.baseURL, modelId, maxTokens: (fileConfig.maxTokens as number) || 4096, timeout: (fileConfig.timeout as number) || 60000 }
-    } catch {}
+    } catch { }
   }
   throw new Error(T("err_resolve_config", { model }))
 }
@@ -195,8 +201,8 @@ function writeSession(sid: string, data: SessionData): void {
         }).catch((err: Error) => {
           log.error(`${sid}: Failed to delete file ${path}`, err)
         })
-  }
-}
+      }
+    }
 
   }
   writeFileSync(join(dir, "files.json"), JSON.stringify(data, null, 2))
@@ -251,7 +257,7 @@ export const FileTool: Plugin = async () => {
           if (parent === sid) sessionParents.delete(child)
         }
       }
-      if (event.type === "message.part.updated") {
+      if (event.type === "message.part.updated" && ENABLED) {
         const part = props?.part as Record<string, unknown> | undefined
         if (part?.type === "file" && ((part?.mime as string) || "").startsWith("image/")) {
           const fn = (part.filename || part.name || "") as string
@@ -344,6 +350,24 @@ export const FileTool: Plugin = async () => {
             writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2))
             reloadCfg()
             return T("model_switched", { model })
+          }
+          if (cmd === "disable") {
+            const cfg = existsSync(CONFIG_PATH) ? readJsonc(CONFIG_PATH) : {}
+            cfg.enabled = false
+            writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2))
+            reloadCfg()
+            return T("disabled")
+          }
+          if (cmd === "enable") {
+            const cfg = existsSync(CONFIG_PATH) ? readJsonc(CONFIG_PATH) : {}
+            cfg.enabled = true
+            writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2))
+            reloadCfg()
+            return T("enabled")
+          }
+          if (cmd === "status") {
+            const cfg = existsSync(CONFIG_PATH) ? readJsonc(CONFIG_PATH) : {}
+            return T("status", { s: ENABLED ? T("enabled") : T("disabled"), m: (cfg.model as string) || T("model_not_set") })
           }
           if (cmd === "list-cache" || cmd.startsWith("list-cache ")) {
             const arg = cmd === "list-cache" ? "1" : cmd.slice(11).trim()

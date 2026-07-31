@@ -14,9 +14,10 @@ OpenCode 文件缓存与图片分析插件。自动缓存用户粘贴的图片�
 
 ## 功能
 
-- **文件缓存** — 粘贴图片时自动缓存到 `~/.opencode/plugins-cache/`
+- **文件缓存** — 粘贴图片时自动缓存到 `~/.opencode/plugins-cache/file-tool/`
 - **图片分析** — 通过 `analyze_image file_id:N` 调用视觉模型分析
 - **会话父子链** — 子 agent 会话可通过 parent 链回退读取祖先会话的缓存
+- **开关控制** — 主模型支持视觉时可用 `disable` 关闭缓存，让模型直接读取图片
 - **多语言** — 支持中/英文提示
 
 ## 工具
@@ -26,6 +27,9 @@ OpenCode 文件缓存与图片分析插件。自动缓存用户粘贴的图片�
 | `file_tool list-provider` | 列出可用模型 |
 | `file_tool set-provider <model>` | 切换视觉模型 |
 | `file_tool list-cache [all\|N\|main\|main N]` | 查看缓存文件 |
+| `file_tool enable` | 开启图片缓存 |
+| `file_tool disable` | 关闭图片缓存，主模型直接读取图片 |
+| `file_tool status` | 查看缓存开关状态和当前视觉模型 |
 | `analyze_image file_id:N` | 分析指定图片 |
 
 ## 命令
@@ -36,7 +40,14 @@ OpenCode 文件缓存与图片分析插件。自动缓存用户粘贴的图片�
 
 ## 配置
 
-`~/.config/opencode/file-tool.jsonc` 在首次启动时自动生成。
+`~/.config/opencode/file-tool.jsonc` 在首次启动时自动生成，支持 `enabled` 字段控制缓存开关。
+
+## 本地测试
+
+```powershell
+# 构建后同步到 npm 缓存目录
+.tmp\publish.ps1
+```
 
 ## GitHub
 
