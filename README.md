@@ -42,13 +42,6 @@ OpenCode 文件缓存与图片分析插件。自动缓存用户粘贴的图片�
 
 `~/.config/opencode/file-tool.jsonc` 在首次启动时自动生成，支持 `enabled` 字段控制缓存开关。
 
-## 本地测试
-
-```powershell
-# 构建后同步到 npm 缓存目录
-.tmp\publish.ps1
-```
-
 ## GitHub
 
 https://github.com/xiaoqiong0v0/opencode-file-tool
