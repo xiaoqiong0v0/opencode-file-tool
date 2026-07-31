@@ -11,7 +11,7 @@ const CONFIG_PATH = join(CONFIG_DIR, ".config/opencode/file-tool.jsonc")
 const OPENCODE_CONFIG = join(CONFIG_DIR, ".config/opencode/opencode.json")
 const CACHE_DIR = join(CONFIG_DIR, ".opencode/plugins-cache", "file-tool")
 
-interface FileEntry { id: number; filename: string; mime: string; msgId: string }
+interface FileEntry { id: number; filename: string; mime: string; msgId: string; cached: boolean }
 interface MessageGroup { msgId: string; fileIds: number[] }
 interface SessionData { nextId: number; files: Record<number, FileEntry>; messages: MessageGroup[] }
 interface Cfg { model?: string; apiKey?: string; apiBaseUrl?: string; baseURL?: string; modelId?: string; maxTokens?: number; timeout?: number; maxCacheMessages?: number; lang?: string }
@@ -29,7 +29,9 @@ const FILE_TOOL_CFG_SAMPLE = `{
   // 缓存消息数量上限，超过则删除最早的
   "maxCacheMessages": 3,
   // 工具提示语言：zh=中文, en=English
-  "lang": "en"
+  "lang": "en",
+  // 是否启用图片缓存
+  "enabled": true
 }
 `
 
@@ -48,7 +50,7 @@ const TX: Record<string, { zh: string; en: string }> = {
   model_not_set: { zh: "未设置", en: "not set" },
   model_switched: { zh: "视觉模型已切换为: {model}", en: "Vision model set to: {model}" },
   specify_model: { zh: "请指定模型名", en: "Specify a model name" },
-  unknown_cmd: { zh: "未知命令: {cmd}\n可用: list-provider, set-provider <model>, list-cache [all|N|main|main N], enable, disable, status", en: "Unknown command: {cmd}\nAvailable: list-provider, set-provider <model>, list-cache [all|N|main|main N], enable, disable, status" },
+unknown_cmd:              { zh: "未知命令: {cmd}\n可用: list-provider, set-provider <model>, list-cache [all|N|main|main N], enable, disable, enable-save, disable-save, status", en: "Unknown command: {cmd}\nAvailable: list-provider, set-provider <model>, list-cache [all|N|main|main N], enable, disable, enable-save, disable-save, status" },
   config_error: { zh: "请在 file-tool.jsonc 中配置 model (provider/modelId) 或 apiKey+apiBaseUrl+model", en: "Set model (provider/modelId) or apiKey+apiBaseUrl+model in file-tool.jsonc" },
   meta_failed: { zh: "分析失败", en: "Failed" },
   meta_skip: { zh: "跳过", en: "Skip" },
@@ -64,8 +66,10 @@ const TX: Record<string, { zh: string; en: string }> = {
   err_resolve_config: { zh: "无法解析模型配置: {model}。请在 file-tool.jsonc 中配置 model (provider/modelId) 或 apiKey+apiBaseUrl+model", en: "Cannot resolve model config: {model}. Set model (provider/modelId) or apiKey+apiBaseUrl+model in file-tool.jsonc" },
   err_api: { zh: "API {status}: {msg}", en: "API {status}: {msg}" },
   empty_response: { zh: "(空)", en: "(empty)" },
+  uncached: { zh: "未缓存", en: "uncached" },
+  uncached_hint: { zh: "文件未缓存（id={id}），请先启用缓存再操作", en: "File not cached (id={id}), enable cache first" },
   cmd_desc: { zh: "切换视觉分析模型", en: "Switch vision analysis model" },
-  cmd_template: { zh: "直接调用 file_tool 工具。`list-provider` 列出模型，`set-provider <模型名>` 切换模型，`list-cache` 查看缓存，`enable/disable` 开关图片缓存，`status` 查看状态。", en: "Call file_tool tool directly. `list-provider` list models, `set-provider <model>` switch, `list-cache` view cache, `enable/disable` toggle cache, `status` show state." },
+cmd_template:             { zh: "直接调用 file_tool 工具。`list-provider` 列出模型，`set-provider <模型名>` 切换模型，`list-cache` 查看缓存，`enable/disable` 临时开关，`enable-save/disable-save` 持久化开关，`status` 查看状态。", en: "Call file_tool tool directly. `list-provider` list models, `set-provider <model>` switch, `list-cache` view cache, `enable/disable` temp toggle, `enable-save/disable-save` persist toggle, `status` show state." },
 }
 
 const T = (key: string, params?: Record<string, string>): string => {
@@ -89,6 +93,13 @@ function loadCfg() {
 
 function reloadCfg() { loadCfg() }
 
+function writeCfgField(key: string, value: unknown): void {
+  const cfg = existsSync(CONFIG_PATH) ? readJsonc(CONFIG_PATH) : {}
+  cfg[key] = value
+  writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2))
+  reloadCfg()
+}
+
 try { loadCfg() } catch (e) { log.error("初始化失败", e instanceof Error ? e : Error(String(e))) }
 
 const DESC: Record<string, { zh: string; en: string }> = {
@@ -101,8 +112,8 @@ const DESC: Record<string, { zh: string; en: string }> = {
     en: "File cache manager. When you see [Image N] or a Cannot read image error, call list-cache to get file IDs, then use analyze_image file_id:N. If the main model can read images directly, use `disable` to turn off caching.",
   },
   file_tool_args: {
-    zh: "list-cache [all|N|main|main N], list-provider, set-provider <model>, enable, disable, status — list-cache 查看缓存(不参数=最近1条,all=全部,N=最近N条,main=主会话,main N=主会话最近N条)",
-    en: "list-cache [all|N|main|main N], list-provider, set-provider <model>, enable, disable, status — list-cache: no arg=last 1, all=all, N=last N, main=root, main N=last N from root",
+    zh: "list-cache [all|N|main|main N], list-provider, set-provider <model>, enable/disable（临时）, enable-save/disable-save（持久化）, status — list-cache 查看缓存(不参数=最近1条,all=全部,N=最近N条,main=主会话,main N=主会话最近N条)",
+    en: "list-cache [all|N|main|main N], list-provider, set-provider <model>, enable/disable (temp), enable-save/disable-save (persist), status — list-cache: no arg=last 1, all=all, N=last N, main=root, main N=last N from root",
   },
   analyze_args_source: { zh: "file_path=file_id:N", en: "file_path=file_id:N" },
   analyze_args_data: { zh: "file_id:N 或 base64", en: "file_id:N or base64" },
@@ -230,6 +241,20 @@ function deleteSession(sid: string): void {
   if (existsSync(dir)) rmSync(dir, { recursive: true, force: true })
 }
 
+function removeMsgCache(sid: string, msgId: string): void {
+  const data = readSession(sid)
+  const idx = data.messages.findIndex(m => m.msgId === msgId)
+  if (idx < 0) { log.info(`${sid}: msg ${msgId.slice(-8)} not in cache, skip`); return }
+  const [msg] = data.messages.splice(idx, 1)
+  for (const fid of msg.fileIds) {
+    delete data.files[fid]
+    const path = join(filesDir(sid), fid + ".b64")
+    rm(path, { force: true }).catch(() => {})
+  }
+  log.info(`${sid}: removed msg ${msgId.slice(-8)} (${msg.fileIds.length} files: ${msg.fileIds.join(", ")})`)
+  writeSession(sid, data)
+}
+
 // V1 export：工具 + 事件
 export const FileTool: Plugin = async () => {
   log.loaded()
@@ -257,17 +282,17 @@ export const FileTool: Plugin = async () => {
           if (parent === sid) sessionParents.delete(child)
         }
       }
-      if (event.type === "message.part.updated" && ENABLED) {
+      if (event.type === "message.part.updated") {
         const part = props?.part as Record<string, unknown> | undefined
         if (part?.type === "file" && ((part?.mime as string) || "").startsWith("image/")) {
           const fn = (part.filename || part.name || "") as string
-          if (fn) {
-            const data = readSession(sid || "")
-            if (!sid) return
+          if (fn && sid) {
+            const data = readSession(sid)
             const fid = data.nextId++
             const msgId = (part.messageID || "") as string
-            data.files[fid] = { id: fid, filename: fn, mime: part.mime as string, msgId }
-            writeFileData(sid, fid, (part.url || "") as string)
+            data.files[fid] = { id: fid, filename: fn, mime: part.mime as string, msgId, cached: ENABLED }
+            if (ENABLED) { writeFileData(sid, fid, (part.url || "") as string); log.info(`${sid}: cached ${fn} as #${fid}`) }
+            else log.info(`${sid}: skip cache ${fn} (disabled)`)
             const msgs = data.messages
             const last = msgs[msgs.length - 1]
             if (last && last.msgId === msgId) {
@@ -278,6 +303,16 @@ export const FileTool: Plugin = async () => {
             writeSession(sid, data)
           }
         }
+      }
+      if (event.type === "message.removed" && sid) {
+        const msgId = (props?.messageID as string) || ""
+        log.info(`${sid}: message.removed msgId=${msgId.slice(-8) || "(empty)"}`)
+        if (msgId) removeMsgCache(sid, msgId)
+      }
+      if (event.type === "message.part.removed" && sid) {
+        const msgId = (props?.messageID as string) || ((props?.info as Record<string, unknown>)?.id as string) || ""
+        log.info(`${sid}: message.part.removed msgId=${msgId.slice(-8) || "(empty)"}`)
+        if (msgId) removeMsgCache(sid, msgId)
       }
     },
     tool: {
@@ -295,6 +330,7 @@ export const FileTool: Plugin = async () => {
             const found = findFileInChain(context.sessionID, fid)
             if (!found) { context.metadata?.({ title: T("meta_failed") }); return T("file_id_not_found", { id: String(fid) }) }
             const file = found.file
+            if (!file.cached) { context.metadata?.({ title: T("meta_skip") }); return T("uncached_hint", { id: String(fid) }) }
             if (!file.mime.startsWith("image/")) { context.metadata?.({ title: T("meta_skip") }); return T("not_an_image", { name: file.filename, mime: file.mime }) }
             fileName = file.filename
             imageUrl = readFileData(context.sessionID, fid) || ""
@@ -352,17 +388,19 @@ export const FileTool: Plugin = async () => {
             return T("model_switched", { model })
           }
           if (cmd === "disable") {
-            const cfg = existsSync(CONFIG_PATH) ? readJsonc(CONFIG_PATH) : {}
-            cfg.enabled = false
-            writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2))
-            reloadCfg()
+            ENABLED = false
             return T("disabled")
           }
           if (cmd === "enable") {
-            const cfg = existsSync(CONFIG_PATH) ? readJsonc(CONFIG_PATH) : {}
-            cfg.enabled = true
-            writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2))
-            reloadCfg()
+            ENABLED = true
+            return T("enabled")
+          }
+          if (cmd === "disable-save") {
+            writeCfgField("enabled", false)
+            return T("disabled")
+          }
+          if (cmd === "enable-save") {
+            writeCfgField("enabled", true)
             return T("enabled")
           }
           if (cmd === "status") {
@@ -389,7 +427,7 @@ export const FileTool: Plugin = async () => {
               out += `  msg_${msg.msgId.slice(-8)}:\n`
               for (const fid of msg.fileIds) {
                 const f = data.files[fid]
-                if (f) out += `    ${f.filename}: ${f.id}\n`
+                if (f) out += `    ${f.filename}: ${f.id}${f.cached ? "" : ` (${T("uncached")})`}\n`
               }
             }
             return out.trim()

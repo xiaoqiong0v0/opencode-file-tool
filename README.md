@@ -27,8 +27,10 @@ OpenCode 文件缓存与图片分析插件。自动缓存用户粘贴的图片�
 | `file_tool list-provider` | 列出可用模型 |
 | `file_tool set-provider <model>` | 切换视觉模型 |
 | `file_tool list-cache [all\|N\|main\|main N]` | 查看缓存文件 |
-| `file_tool enable` | 开启图片缓存 |
-| `file_tool disable` | 关闭图片缓存，主模型直接读取图片 |
+| `file_tool enable` | 临时开启图片缓存（重启恢复默认） |
+| `file_tool disable` | 临时关闭图片缓存（重启恢复默认） |
+| `file_tool enable-save` | 持久开启图片缓存（写入配置） |
+| `file_tool disable-save` | 持久关闭图片缓存（写入配置） |
 | `file_tool status` | 查看缓存开关状态和当前视觉模型 |
 | `analyze_image file_id:N` | 分析指定图片 |
 
