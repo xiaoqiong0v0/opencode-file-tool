@@ -42,16 +42,25 @@ export const TX: Record<string, { zh: string; en: string }> = {
   uncached: { zh: "未缓存", en: "uncached" },
   uncached_hint: { zh: "文件未缓存（id={id}），请先启用缓存再操作", en: "File not cached (id={id}), enable cache first" },
   cmd_desc: { zh: "文件缓存管理 + 多模型配置（视觉/文生图/文生视频/文生语音）", en: "File cache manager + multi-model config (vision/image/video/tts)" },
-  cmd_template: { zh: "直接调用 file_tool 工具。`list-provider` 列出模型（优先 API 查询），`set-provider [类型:]模型名` 切换模型（类型: vision/image/video/tts），`list-cache [类型] [数量]` 查看缓存，`enable/disable` 临时开关，`enable-save/disable-save` 持久化开关，`status` 查看状态。", en: "Call file_tool tool directly. `list-provider` list models (API-first), `set-provider [type:]model` switch (type: vision/image/video/tts), `list-cache [type] [count]` view cache, `enable/disable` temp toggle, `enable-save/disable-save` persist toggle, `status` show state." },
+  cmd_template: { zh: "直接调用 file_tool。`list-cache input` 看用户图片，`list-cache image|video|tts` 看生成产物，`list-provider` 列出模型，`set-provider [类型:]模型名` 切换，`enable/disable` 临时开关，`enable-save/disable-save` 持久化，`status` 查看状态。", en: "Call file_tool. `list-cache input` user images, `list-cache image|video|tts` generated, `list-provider` list models, `set-provider [type:]model` switch, `enable/disable` temp, `enable-save/disable-save` persist, `status` show state." },
 }
 
 export const DESC: Record<string, { zh: string; en: string }> = {
-  analyze_image: { zh: "用多模态模型分析图片。先调 file_tool list-cache 拿到文件ID，再用 file_id:类型:id 分析。", en: "Analyze images with multimodal model. Call file_tool list-cache first to get file IDs, then use file_id:type:id." },
+  analyze_image: {
+    zh: "用多模态模型分析图片。file_id:类型:id，类型: input=用户图片/image=生成图。先用 list-cache 拿 ID 再分析。",
+    en: "Analyze image with multimodal model. file_id:type:id; types: input=user image/image=generated. Get ID via list-cache first.",
+  },
   text_to_image: { zh: "文生图：根据文本提示生成图片，结果缓存并返回 file_id:类型:id，可用 analyze_image 查看。", en: "Text-to-image: generate an image from a prompt, cached and returned as file_id:type:id." },
   text_to_video: { zh: "文生视频：根据文本提示生成视频（异步提交+轮询），结果缓存并返回 file_id:类型:id。", en: "Text-to-video: generate a video from a prompt (async submit+poll), cached and returned as file_id:type:id." },
   text_to_speech: { zh: "文生语音：将文本转为语音（TTS），结果缓存并返回 file_id:类型:id。", en: "Text-to-speech: convert text to audio, cached and returned as file_id:type:id." },
-  file_tool: { zh: "文件缓存管理。当你在上下文中看到 [Image N] 或收到 Cannot read 图片错误时，立即调 list-cache 获取文件ID，再用 analyze_image file_id:类型:id 分析。主模型能直接读取图片时建议用 `disable` 关闭缓存。", en: "File cache manager. When you see [Image N] or a Cannot read image error, call list-cache to get file IDs, then use analyze_image file_id:type:id. If the main model can read images directly, use `disable` to turn off caching." },
-  file_tool_args: { zh: "list-cache [类型] [数量]（类型: input/image/video/tts，如 list-cache image 3），list-provider, set-provider [<类型>:]<模型名>, enable/disable（临时）, enable-save/disable-save（持久化）, status — main 前缀查主会话（list-cache main [类型] [数量]）", en: "list-cache [type] [count] (type: input/image/video/tts, e.g. list-cache image 3), list-provider, set-provider [<type>:]<model>, enable/disable (temp), enable-save/disable-save (persist), status — main prefix for root session (list-cache main [type] [count])" },
+  file_tool: {
+    zh: "文件缓存管理。类型: input=用户图片, image/video/tts=生成产物。查看用户图片用 `list-cache input`；生成产物用 `list-cache image|video|tts`。file_id:类型:id 供 analyze_image 分析。",
+    en: "File cache. Types: input=user images, image/video/tts=generated. View user images via `list-cache input`; generated via `list-cache image|video|tts`. file_id:type:id for analyze_image.",
+  },
+  file_tool_args: {
+    zh: "list-cache [类型] [数量]: input=用户图片(最常用)/image/video/tts=生成产物; list-provider; set-provider [类型:]模型; enable/disable; enable-save/disable-save; status; main 前缀查主会话",
+    en: "list-cache [type] [count]: input=user images(common)/image/video/tts=generated; list-provider; set-provider [type:]model; enable/disable; enable-save/disable-save; status; main prefix for root session",
+  },
   analyze_args_source: { zh: "file_path=file_id:类型:id（如 file_id:image:2）", en: "file_path=file_id:type:id (e.g. file_id:image:2)" },
   analyze_args_data: { zh: "file_id:类型:id 或 base64", en: "file_id:type:id or base64" },
   analyze_args_prompt: { zh: "分析提示", en: "prompt" },
