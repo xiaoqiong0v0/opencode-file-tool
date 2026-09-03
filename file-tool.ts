@@ -1,21 +1,13 @@
 import type { Plugin } from "@opencode-ai/plugin"
-import { T } from "./i18n.js"
 import { log, ENABLED, loadCfg } from "./config.js"
 import { registerInputFile, migrateLegacyCache, knownSessions, sessionParents, deleteSession, removeMsgCache, extForMime } from "./cache.js"
-import { analyzeImageTool } from "./tools/analyze.js"
-import { textToImageTool, textToVideoTool, textToSpeechTool } from "./tools/generate.js"
-import { fileTool } from "./tools/file_tool.js"
+import { fileToolCli } from "./tools/cli.js"
 
 try { loadCfg() } catch (e) { log.error("初始化失败", e instanceof Error ? e : Error(String(e))) }
 
 export const fileToolPlugin: Plugin = async () => {
   log.loaded()
   return {
-    config: async (config) => {
-      const commands = config.command ?? {}
-      commands["file-tool"] = { template: T("cmd_template"), description: T("cmd_desc") }
-      config.command = commands
-    },
     event: async ({ event }) => {
       const props = event.properties as Record<string, unknown> | undefined
       const sid = props?.sessionID as string | undefined
@@ -63,11 +55,7 @@ export const fileToolPlugin: Plugin = async () => {
       }
     },
     tool: {
-      analyze_image: analyzeImageTool,
-      text_to_image: textToImageTool,
-      text_to_video: textToVideoTool,
-      text_to_speech: textToSpeechTool,
-      file_tool: fileTool,
+      file_tool: fileToolCli,
     },
   }
 }

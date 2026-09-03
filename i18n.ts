@@ -41,33 +41,11 @@ export const TX: Record<string, { zh: string; en: string }> = {
   empty_response: { zh: "(空)", en: "(empty)" },
   uncached: { zh: "未缓存", en: "uncached" },
   uncached_hint: { zh: "文件未缓存（id={id}），请先启用缓存再操作", en: "File not cached (id={id}), enable cache first" },
-  cmd_desc: { zh: "文件缓存管理 + 多模型配置（视觉/文生图/文生视频/文生语音）", en: "File cache manager + multi-model config (vision/image/video/tts)" },
-  cmd_template: { zh: "直接调用 file_tool。`list-cache input` 看用户图片，`list-cache image|video|tts` 看生成产物，`list-provider` 列出模型，`set-provider [类型:]模型名` 切换，`enable/disable` 临时开关，`enable-save/disable-save` 持久化，`status` 查看状态。", en: "Call file_tool. `list-cache input` user images, `list-cache image|video|tts` generated, `list-provider` list models, `set-provider [type:]model` switch, `enable/disable` temp, `enable-save/disable-save` persist, `status` show state." },
 }
 
 export const DESC: Record<string, { zh: string; en: string }> = {
-  analyze_image: {
-    zh: "用多模态模型分析图片。file_id:类型:id，类型: input=用户图片/image=生成图。先用 list-cache 拿 ID 再分析。",
-    en: "Analyze image with multimodal model. file_id:type:id; types: input=user image/image=generated. Get ID via list-cache first.",
-  },
-  text_to_image: { zh: "文生图：根据文本提示生成图片，结果缓存并返回 file_id:类型:id，可用 analyze_image 查看。", en: "Text-to-image: generate an image from a prompt, cached and returned as file_id:type:id." },
-  text_to_video: { zh: "文生视频：根据文本提示生成视频（异步提交+轮询），结果缓存并返回 file_id:类型:id。", en: "Text-to-video: generate a video from a prompt (async submit+poll), cached and returned as file_id:type:id." },
-  text_to_speech: { zh: "文生语音：将文本转为语音（TTS），结果缓存并返回 file_id:类型:id。", en: "Text-to-speech: convert text to audio, cached and returned as file_id:type:id." },
-  file_tool: {
-    zh: "文件缓存管理。类型: input=用户图片, image/video/tts=生成产物。查看用户图片用 `list-cache input`；生成产物用 `list-cache image|video|tts`。file_id:类型:id 供 analyze_image 分析。",
-    en: "File cache. Types: input=user images, image/video/tts=generated. View user images via `list-cache input`; generated via `list-cache image|video|tts`. file_id:type:id for analyze_image.",
-  },
-  file_tool_args: {
-    zh: "list-cache [类型] [数量]: input=用户图片(最常用)/image/video/tts=生成产物; list-provider; set-provider [类型:]模型; enable/disable; enable-save/disable-save; status; main 前缀查主会话",
-    en: "list-cache [type] [count]: input=user images(common)/image/video/tts=generated; list-provider; set-provider [type:]model; enable/disable; enable-save/disable-save; status; main prefix for root session",
-  },
-  analyze_args_source: { zh: "file_path=file_id:类型:id（如 file_id:image:2）", en: "file_path=file_id:type:id (e.g. file_id:image:2)" },
-  analyze_args_data: { zh: "file_id:类型:id 或 base64", en: "file_id:type:id or base64" },
-  analyze_args_prompt: { zh: "分析提示", en: "prompt" },
-  gen_args_prompt: { zh: "生成提示词", en: "generation prompt" },
-  gen_args_size: { zh: "图片尺寸（如 1024x1024）", en: "image size (e.g. 1024x1024)" },
-  gen_args_duration: { zh: "视频时长（秒）", en: "video duration (seconds)" },
-  gen_args_voice: { zh: "音色（如 alloy）", en: "voice (e.g. alloy)" },
+  file_tool: { zh: "统一命令行工具。子命令: analyze 分析图 / imagine 文生图 / video 文生视频 / tts 文生语音 / list 缓存列表 / providers 模型列表 / set 切换模型 / status / enable-disable。空参数或 help 看用法。", en: "Single CLI tool. Subcommands: analyze image / imagine t2i / video t2v / tts / list cache / providers models / set model / status / enable-disable. Empty or help for usage." },
+  file_tool_args: { zh: "完整命令行字符串，如 'list input'、'imagine 一只橘猫'、'analyze file_id:input:1'；空时默认 help。类型: input=用户图片, image/video/tts=生成产物。", en: "Full command string, e.g. 'list input', 'imagine a cat', 'analyze file_id:input:1'; empty defaults to help. Types: input=user image, image/video/tts=generated." },
 }
 
 export function T(key: string, params?: Record<string, string>): string {
