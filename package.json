@@ -1,6 +1,6 @@
 {
   "name": "@xiaoqiong0v0/opencode-file-tool",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "type": "module",
   "description": "File cache & image analysis plugin for OpenCode. Auto-caches pasted images, analyzes via multimodal model.",
   "files": [
@@ -28,7 +28,7 @@
     "@opencode-ai/plugin": "*"
   },
   "dependencies": {
-    "@xiaoqiong0v0/opencode-plugin-logger": "^1.0.4",
+    "@xiaoqiong0v0/opencode-plugin-logger": "^1.0.5",
     "string-argv": "^0.3.2"
   },
   "devDependencies": {
