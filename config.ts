@@ -21,7 +21,8 @@ export const log: Logger = createLogger("file-tool")
 
 export const CONFIG_DIR = process.env.HOME || process.env.USERPROFILE || ""
 export const CONFIG_PATH = join(CONFIG_DIR, ".config/opencode/file-tool.jsonc")
-export const OPENCODE_CONFIG = join(CONFIG_DIR, ".config/opencode/opencode.json")
+// opencode 配置文件候选（按加载顺序排列，后者覆盖前者），可能同时存在
+const OPENCODE_CONFIG_FILES = ["config.json", "config.jsonc", "opencode.json", "opencode.jsonc"]
 export const CACHE_DIR = join(CONFIG_DIR, ".opencode/plugins-cache", "file-tool")
 
 export let _cfg: Cfg | null = null
@@ -56,10 +57,69 @@ export const DEFAULT_CFG: Record<string, unknown> = {
   enabled: true,
 }
 
-export function readJsonc(path: string): Record<string, unknown> {
-  const raw = readFileSync(path, "utf-8").replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "")
-  return JSON.parse(raw)
+// 去除 JSONC 注释与尾逗号（字符串感知，避免误伤字符串内的 // 如 URL）
+function stripJsonc(raw: string): string {
+  let out = ""
+  let inStr = false
+  let escaped = false
+  let lineComment = false
+  let blockComment = false
+  for (let i = 0; i < raw.length; i++) {
+    const c = raw[i]
+    const n = raw[i + 1]
+    if (lineComment) { if (c === "\n") { lineComment = false; out += c } continue }
+    if (blockComment) { if (c === "*" && n === "/") { blockComment = false; i++ } continue }
+    if (inStr) {
+      out += c
+      if (escaped) escaped = false
+      else if (c === "\\") escaped = true
+      else if (c === '"') inStr = false
+      continue
+    }
+    if (c === '"') { inStr = true; out += c; continue }
+    if (c === "/" && n === "/") { lineComment = true; i++; continue }
+    if (c === "/" && n === "*") { blockComment = true; i++; continue }
+    out += c
+  }
+  // 去尾逗号（对象/数组结尾前的逗号）
+  return out.replace(/,(\s*[}\]])/g, "$1")
 }
+
+export function readJsonc(path: string): Record<string, unknown> {
+  return JSON.parse(stripJsonc(readFileSync(path, "utf-8")))
+}
+
+// 递归深合并（对象合并，数组/标量覆盖）
+function deepMerge(target: Record<string, unknown>, source: Record<string, unknown>): void {
+  for (const [key, val] of Object.entries(source)) {
+    const cur = target[key]
+    if (val && typeof val === "object" && !Array.isArray(val) && cur && typeof cur === "object" && !Array.isArray(cur)) {
+      deepMerge(cur as Record<string, unknown>, val as Record<string, unknown>)
+    } else {
+      target[key] = val
+    }
+  }
+}
+
+let _ocCfg: Record<string, unknown> | null = null
+
+// 统一读取 opencode 配置：按候选顺序（config.json → config.jsonc → opencode.json → opencode.jsonc）
+// 逐个读取并深合并，后者覆盖前者；文件不存在或解析失败则跳过，不报错
+export function loadOpencodeConfig(): Record<string, unknown> {
+  if (_ocCfg) return _ocCfg
+  const merged: Record<string, unknown> = {}
+  for (const name of OPENCODE_CONFIG_FILES) {
+    const path = join(CONFIG_DIR, ".config/opencode", name)
+    if (!existsSync(path)) continue
+    try { deepMerge(merged, readJsonc(path)) }
+    catch (e) { log.error(`Failed to read opencode config ${path}`, e instanceof Error ? e : Error(String(e))) }
+  }
+  _ocCfg = merged
+  return merged
+}
+
+// 清空 opencode 配置缓存（配置变更后调用）
+export function invalidateOpencodeConfig(): void { _ocCfg = null }
 
 export function splitModel(model: string): { provider: string; modelId: string } {
   const idx = model.indexOf("/")
@@ -67,23 +127,18 @@ export function splitModel(model: string): { provider: string; modelId: string }
 }
 
 export function getProviderCreds(provider: string): { apiKey: string; baseURL: string } | null {
-  try {
-    const oc = JSON.parse(readFileSync(OPENCODE_CONFIG, "utf-8"))
-    const prov = oc.provider?.[provider]
-    if (prov?.options?.apiKey && prov?.options?.baseURL) return { apiKey: prov.options.apiKey, baseURL: prov.options.baseURL }
-  } catch { }
+  const prov = (loadOpencodeConfig().provider as Record<string, any>)?.[provider]
+  if (prov?.options?.apiKey && prov?.options?.baseURL) return { apiKey: prov.options.apiKey, baseURL: prov.options.baseURL }
   return null
 }
 
 export function getProviderNames(): Set<string> {
   const names = new Set<string>()
-  try {
-    const oc = JSON.parse(readFileSync(OPENCODE_CONFIG, "utf-8"))
-    for (const [pName, pVal] of Object.entries(oc.provider || {})) {
-      const p = (pVal as Record<string, unknown>).options as Record<string, unknown> | undefined
-      if (p?.apiKey && p?.baseURL) names.add(pName)
-    }
-  } catch { }
+  const providers = (loadOpencodeConfig().provider as Record<string, unknown>) || {}
+  for (const [pName, pVal] of Object.entries(providers)) {
+    const p = (pVal as Record<string, unknown>).options as Record<string, unknown> | undefined
+    if (p?.apiKey && p?.baseURL) names.add(pName)
+  }
   return names
 }
 

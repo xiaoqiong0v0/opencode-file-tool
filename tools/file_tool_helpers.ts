@@ -1,16 +1,14 @@
 import { existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 import { T } from "../i18n.js"
-import { OPENCODE_CONFIG, CONFIG_DIR, MODEL_TYPES, getProviderCreds, getCfg, log } from "../config.js"
+import { CONFIG_DIR, MODEL_TYPES, getProviderCreds, getCfg, log, loadOpencodeConfig } from "../config.js"
 
 export function localModelList(): string[] {
   const models: string[] = []
-  try {
-    const oc = JSON.parse(readFileSync(OPENCODE_CONFIG, "utf-8"))
-    for (const [pName, pVal] of Object.entries(oc.provider || {}))
-      for (const mId of Object.keys((pVal as Record<string, unknown>).models || {}))
-        models.push(`${pName}/${mId}`)
-  } catch { }
+  const oc = loadOpencodeConfig()
+  for (const [pName, pVal] of Object.entries(oc.provider || {}))
+    for (const mId of Object.keys((pVal as Record<string, unknown>).models || {}))
+      models.push(`${pName}/${mId}`)
   const modelsJsonPath = join(CONFIG_DIR, ".cache/opencode/models.json")
   if (existsSync(modelsJsonPath)) {
     try {
