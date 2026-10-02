@@ -15,11 +15,25 @@ const GEN_TIMEOUT = 300000
 
 interface Ctx { sessionID: string; messageID: string; directory: string; metadata?: (m: { title: string; metadata?: Record<string, string> }) => void }
 
+// 形如图片路径：含路径分隔符，或以常见图片扩展名结尾
+function looksLikeImagePath(s: string): boolean {
+  return /[/\\]/.test(s) || /\.(png|jpe?g|bmp|gif|webp)$/i.test(s)
+}
+
+function isDataUri(s: string): boolean {
+  return s.startsWith("data:")
+}
+
+// 粗略判断是否为 base64（严格字符集 + 长度下限，避免把短标识误判为 base64）
+function looksLikeBase64(s: string): boolean {
+  return s.length >= 64 && /^[A-Za-z0-9+/\r\n]+={0,2}$/.test(s)
+}
+
 function helpText(): string {
   if (LANG === "zh") {
     return `用法: file_tool <子命令> [参数]
 子命令:
-  analyze <file_id:类型:id|路径|base64> [提示语]  分析图片
+  analyze <入参> [提示语]                          分析图片，入参三选一: file_id:类型:id | 图片路径 | base64
   imagine <提示词> [--size 1024x1024]            文生图
   video <提示词> [--duration 5]                  文生视频(异步)
   tts <文本> [--voice alloy]                     文生语音
@@ -37,7 +51,7 @@ function helpText(): string {
   }
   return `Usage: file_tool <subcommand> [args]
 Subcommands:
-  analyze <file_id:type:id|path|base64> [prompt]  analyze image
+  analyze <input> [prompt]                        analyze image; input: file_id:type:id | image path | base64
   imagine <prompt> [--size 1024x1024]             text-to-image
   video <prompt> [--duration 5]                   text-to-video (async)
   tts <text> [--voice alloy]                      text-to-speech
@@ -70,25 +84,37 @@ async function analyzeCmd(args: string[], context: Ctx): Promise<string> {
     } else {
       fid = parseInt(segs[0], 10)
     }
+    if (isNaN(fid)) { context.metadata?.({ title: T("meta_error") }); return T("analyze_bad_input", { input: data }) }
     const found = findFileInChain(context.sessionID, type, fid)
-    if (!found) { context.metadata?.({ title: T("meta_failed") }); return T("file_id_not_found", { id: `${type}:${fid}` }) }
+    if (!found) {
+      const avail = Object.keys(readTypeStore(context.sessionID, type).files)
+      context.metadata?.({ title: T("meta_failed") })
+      return T("file_id_not_found", { id: data, hint: avail.length ? `\n${T("available_ids", { type, ids: avail.join(", ") })}` : "" })
+    }
     const file = found.file
-    if (!file.cached) { context.metadata?.({ title: T("meta_skip") }); return T("uncached_hint", { id: `${type}:${fid}` }) }
+    if (!file.cached) { context.metadata?.({ title: T("meta_skip") }); return T("uncached_hint", { id: data }) }
     if (!file.mime.startsWith("image/")) { context.metadata?.({ title: T("meta_skip") }); return T("not_an_image", { name: file.filename, mime: file.mime }) }
     fileName = file.filename
     imageUrl = readFileData(context.sessionID, type, fid) || ""
-    if (!imageUrl) { context.metadata?.({ title: T("meta_failed") }); return T("file_data_not_found", { id: `${type}:${fid}` }) }
+    if (!imageUrl) { context.metadata?.({ title: T("meta_failed") }); return T("file_data_not_found", { id: data }) }
     prompt = prompt || T("describe_image", { name: fileName })
   } else if (existsSync(data) || existsSync(join(context.directory, data))) {
     if (!existsSync(data)) data = join(context.directory, data)
-    if (!existsSync(data)) { context.metadata?.({ title: T("meta_not_found") }); return T("file_not_found", { path: data }) }
     const ext = data.split(".").pop()?.toLowerCase() || ""
     const mimeMap: Record<string, string> = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", bmp: "image/bmp", gif: "image/gif", webp: "image/webp" }
     const mime = mimeMap[ext] || "image/png"
     fileName = data.split(/[/\\]/).pop() || ""
     imageUrl = `data:${mime};base64,${readFileSync(data).toString("base64")}`
-  } else {
+  } else if (looksLikeImagePath(data)) {
+    // 像路径但不存在 → 明确报错，避免被误当 base64 发给 API
+    context.metadata?.({ title: T("meta_not_found") })
+    return T("file_not_found", { path: data })
+  } else if (isDataUri(data) || looksLikeBase64(data)) {
     imageUrl = `data:image/png;base64,${data.replace(/^data:image\/\w+;base64,/, "")}`
+  } else {
+    // 既不是 file_id、也不是路径、也不是 base64 → 本地拦截
+    context.metadata?.({ title: T("meta_error") })
+    return T("analyze_bad_input", { input: data })
   }
   try {
     const cfg = requireModelCfg("vision")
@@ -253,7 +279,7 @@ function listCmd(args: string[], sessionID: string): string {
     lines.push(`  ${type}:`)
     for (const f of show) {
       const src = f.msgId ? `msg_${f.msgId.slice(-8)}` : type === "input" ? "input" : "generated"
-      lines.push(`    ${f.filename} (${type}:${f.id}) [${src}]`)
+      lines.push(`    ${f.filename} (file_id:${type}:${f.id}) [${src}]`)
     }
   }
   if (lines.length === 0) return `${targetSid}: ${T("no_cache")}`

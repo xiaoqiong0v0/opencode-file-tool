@@ -3,7 +3,9 @@ export function setLang(lang: string) { LANG = lang === "zh" ? "zh" : "en" }
 
 export const TX: Record<string, { zh: string; en: string }> = {
   file_not_found: { zh: "文件不存在: {path}", en: "File not found: {path}" },
-  file_id_not_found: { zh: "文件ID不存在: {id}", en: "File ID not found: {id}" },
+  file_id_not_found: { zh: "文件ID不存在: {id}；格式应为 file_id:类型:id（如 file_id:input:1）{hint}", en: "File ID not found: {id}; expected format file_id:type:id (e.g. file_id:input:1){hint}" },
+  available_ids: { zh: "可用 {type}: {ids}", en: "Available {type}: {ids}" },
+  analyze_bad_input: { zh: "无法识别的图片入参: {input}\n入参三选一: file_id:类型:id（如 file_id:input:1）/ 存在的图片路径 / base64", en: "Unrecognized image input: {input}\nProvide one of: file_id:type:id (e.g. file_id:input:1) / existing image path / base64" },
   file_data_not_found: { zh: "文件数据不存在: {id}", en: "File data not found: {id}" },
   not_an_image: { zh: "不是图片文件: {name} ({mime})", en: "Not an image: {name} ({mime})" },
   unsupported_source: { zh: "不支持的图片来源: {source}", en: "Unsupported source: {source}" },
@@ -40,7 +42,7 @@ export const TX: Record<string, { zh: string; en: string }> = {
   err_api: { zh: "API {status}: {msg}", en: "API {status}: {msg}" },
   empty_response: { zh: "(空)", en: "(empty)" },
   uncached: { zh: "未缓存", en: "uncached" },
-  uncached_hint: { zh: "文件未缓存（id={id}），请先启用缓存再操作", en: "File not cached (id={id}), enable cache first" },
+  uncached_hint: { zh: "文件未缓存（{id}），请先启用缓存再操作", en: "File not cached ({id}), enable cache first" },
 }
 
 export const DESC: Record<string, { zh: string; en: string }> = {
